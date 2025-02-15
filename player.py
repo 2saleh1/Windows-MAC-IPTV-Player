@@ -170,6 +170,10 @@ class WindowsIPTVPlayer:
         self.portal_url = user_data["portal_url"]
         self.mac_address = user_data["mac_address"]
 
+        # Back Button
+        self.back_button = tk.Button(root, text="Back", command=self.go_back, fg="red")
+        self.back_button.pack()
+
         # Search Bar
         tk.Label(root, text="Search Channels:").pack()
         self.search_var = StringVar()
@@ -196,6 +200,13 @@ class WindowsIPTVPlayer:
         self.channels = []  # Stores (name, url) tuples
         self.filtered_channels = []  # Stores channels filtered by search
 
+    def go_back(self):
+        """Close IPTV player and return to the user selection screen."""
+        self.root.destroy()  # Close current window
+        root = tk.Tk()
+        IPTVUserSelection(root)  # Reopen user selection window
+        root.mainloop()
+        
     def fetch_channels(self):
         """Fetch IPTV channels using MAC authentication."""
         auth_url = f"{self.portal_url}server/load.php?type=stb&action=handshake&mac={self.mac_address}"

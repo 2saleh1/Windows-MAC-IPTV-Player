@@ -26,7 +26,13 @@ class IPTVUserSelection:
         self.selected_user = StringVar(root)
         self.selected_user.set("Choose a user")  # Default option
 
-        # User Dropdown
+        # Ensure there's at least one user in the dropdown
+        if self.credentials:
+            self.selected_user.set(next(iter(self.credentials)))  # Set the first user as default
+        else:
+            self.selected_user.set("No users available")  # Placeholder text
+
+        # Create the dropdown menu
         self.user_menu = OptionMenu(root, self.selected_user, *self.credentials.keys())
         self.user_menu.pack()
 

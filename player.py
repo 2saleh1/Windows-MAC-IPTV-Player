@@ -24,13 +24,16 @@ class IPTVUserSelection:
         tk.Label(root, text="Select User:").pack()
         
         self.selected_user = StringVar(root)
-        self.selected_user.set("Choose a user")  # Default option
 
-        # Ensure there's at least one user in the dropdown
-        if self.credentials:
-            self.selected_user.set(next(iter(self.credentials)))  # Set the first user as default
-        else:
-            self.selected_user.set("No users available")  # Placeholder text
+        # If no users exist, prompt the user to create one
+        if not self.credentials:
+            messagebox.showinfo("No Users Found", "No IPTV users found. Please create a new user.")
+            self.root.destroy()
+            NewUserWindow()
+            return
+
+        # Set the first available user as default
+        self.selected_user.set(next(iter(self.credentials)))  
 
         # Create the dropdown menu
         self.user_menu = OptionMenu(root, self.selected_user, *self.credentials.keys())
@@ -68,7 +71,9 @@ class IPTVUserSelection:
         if self.credentials:
             self.selected_user.set(list(self.credentials.keys())[0])
         else:
-            self.selected_user.set("Choose a user")
+            messagebox.showinfo("No Users Found", "No IPTV users left. Please create a new user.")
+            self.root.destroy()
+            NewUserWindow()
 
     def start_player(self):
         """Start the IPTV Player with the selected user."""
@@ -106,6 +111,54 @@ class IPTVUserSelection:
         WindowsIPTVPlayer(root, user_data)
         root.mainloop()
 
+
+class NewUserWindow:
+    """New User Creation Window"""
+    def __init__(self):
+        self.root = tk.Tk()
+        self.root.title("New IPTV User")
+        self.root.geometry("400x200")
+
+        tk.Label(self.root, text="Enter IPTV Portal URL:").pack()
+        self.portal_entry = tk.Entry(self.root, width=50)
+        self.portal_entry.pack()
+
+        tk.Label(self.root, text="Enter MAC Address:").pack()
+        self.mac_entry = tk.Entry(self.root, width=50)
+        self.mac_entry.pack()
+
+        self.save_button = tk.Button(self.root, text="Save", command=self.save_user)
+        self.save_button.pack()
+
+    def save_user(self):
+        """Save new user credentials."""
+        portal_url = self.portal_entry.get().strip()
+        mac_address = self.mac_entry.get().strip()
+
+        if not portal_url or not mac_address:
+            messagebox.showerror("Error", "Both fields must be filled.")
+            return
+
+        username = simpledialog.askstring("User Name", "Enter a name for this profile:")
+
+        if not username:
+            messagebox.showerror("Error", "User name is required.")
+            return
+
+        if not portal_url.endswith('/'):
+            portal_url += '/'
+
+        user_data = {"portal_url": portal_url, "mac_address": mac_address}
+        with open(os.path.join(CREDENTIALS_DIR, f"{username}.json"), "w") as f:
+            json.dump(user_data, f)
+
+        messagebox.showinfo("Success", f"User '{username}' saved successfully!")
+        self.root.destroy()  
+
+        # Reopen user selection window
+        root = tk.Tk()
+        IPTVUserSelection(root)
+        root.mainloop()
 
 class WindowsIPTVPlayer:
     """Main IPTV Player GUI"""

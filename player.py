@@ -1,12 +1,10 @@
 import tkinter as tk
-from tkinter import messagebox, Listbox, Scrollbar, OptionMenu, StringVar, simpledialog
-
+from tkinter import messagebox, Listbox, Scrollbar, OptionMenu, StringVar, simpledialog, Entry
 import requests
 import subprocess
 import os
 import json
 import urllib.parse
-
 
 CREDENTIALS_DIR = "credentials"
 
@@ -15,7 +13,7 @@ class IPTVUserSelection:
     def __init__(self, root):
         self.root = root
         self.root.title("Select IPTV User")
-        self.root.geometry("400x200")
+        self.root.geometry("400x250")
 
         # Ensure credentials directory exists
         if not os.path.exists(CREDENTIALS_DIR):
@@ -39,6 +37,9 @@ class IPTVUserSelection:
         self.new_button = tk.Button(root, text="New", command=self.open_new_user_window)
         self.new_button.pack()
 
+        self.delete_button = tk.Button(root, text="Delete User", command=self.delete_user, fg="red")
+        self.delete_button.pack()
+
     def load_credentials(self):
         """Load all saved user profiles from the credentials directory."""
         users = {}
@@ -48,6 +49,20 @@ class IPTVUserSelection:
                     data = json.load(f)
                     users[filename.replace(".json", "")] = data
         return users
+
+    def update_user_menu(self):
+        """Refresh the dropdown menu after adding or deleting users."""
+        menu = self.user_menu["menu"]
+        menu.delete(0, "end")  # Clear existing menu options
+
+        self.credentials = self.load_credentials()  # Reload users
+        for user in self.credentials.keys():
+            menu.add_command(label=user, command=lambda value=user: self.selected_user.set(value))
+
+        if self.credentials:
+            self.selected_user.set(list(self.credentials.keys())[0])
+        else:
+            self.selected_user.set("Choose a user")
 
     def start_player(self):
         """Start the IPTV Player with the selected user."""
@@ -65,63 +80,24 @@ class IPTVUserSelection:
         self.root.destroy()
         NewUserWindow()
 
+    def delete_user(self):
+        """Delete the selected user profile."""
+        username = self.selected_user.get()
+        if username not in self.credentials:
+            messagebox.showwarning("Warning", "Please select a valid user.")
+            return
+
+        confirm = messagebox.askyesno("Delete User", f"Are you sure you want to delete '{username}'?")
+        if confirm:
+            file_path = os.path.join(CREDENTIALS_DIR, f"{username}.json")
+            os.remove(file_path)
+            messagebox.showinfo("Deleted", f"User '{username}' has been deleted.")
+            self.update_user_menu()
+
     def launch_player(self, user_data):
         """Launch IPTV Player with selected user data."""
         root = tk.Tk()
         WindowsIPTVPlayer(root, user_data)
-        root.mainloop()
-
-
-class NewUserWindow:
-    """Second GUI - Create a New User Profile"""
-    def __init__(self):
-        self.root = tk.Tk()
-        self.root.title("New IPTV User")
-        self.root.geometry("400x200")
-
-        tk.Label(self.root, text="Enter IPTV Portal URL:").pack()
-        self.portal_entry = tk.Entry(self.root, width=50)
-        self.portal_entry.pack()
-
-        tk.Label(self.root, text="Enter MAC Address:").pack()
-        self.mac_entry = tk.Entry(self.root, width=50)
-        self.mac_entry.pack()
-
-        self.save_button = tk.Button(self.root, text="Save", command=self.save_user)
-        self.save_button.pack()
-
-    def save_user(self):
-        """Save new user credentials."""
-        portal_url = self.portal_entry.get().strip()
-        mac_address = self.mac_entry.get().strip()
-
-        if not portal_url or not mac_address:
-            messagebox.showerror("Error", "Both fields must be filled.")
-            return
-
-        # Ask for a username
-        username = simpledialog.askstring("User Name", "Enter a name for this profile:")
-
-
-        if not username:
-            messagebox.showerror("Error", "User name is required.")
-            return
-
-        # Ensure URL ends with "/"
-        if not portal_url.endswith('/'):
-            portal_url += '/'
-
-        # Save user profile
-        user_data = {"portal_url": portal_url, "mac_address": mac_address}
-        with open(os.path.join(CREDENTIALS_DIR, f"{username}.json"), "w") as f:
-            json.dump(user_data, f)
-
-        messagebox.showinfo("Success", f"User '{username}' saved successfully!")
-        self.root.destroy()  # Close this window
-
-        # Reopen user selection window
-        root = tk.Tk()
-        IPTVUserSelection(root)
         root.mainloop()
 
 
@@ -134,6 +110,13 @@ class WindowsIPTVPlayer:
 
         self.portal_url = user_data["portal_url"]
         self.mac_address = user_data["mac_address"]
+
+        # Search Bar
+        tk.Label(root, text="Search Channels:").pack()
+        self.search_var = StringVar()
+        self.search_entry = Entry(root, textvariable=self.search_var)
+        self.search_entry.pack()
+        self.search_entry.bind("<KeyRelease>", self.search_channels)
 
         # Channel List UI
         self.channel_list = Listbox(root, width=60, height=10)
@@ -151,7 +134,8 @@ class WindowsIPTVPlayer:
         self.play_button = tk.Button(root, text="Play", command=self.play_stream)
         self.play_button.pack()
 
-        self.channels = []
+        self.channels = []  # Stores (name, url) tuples
+        self.filtered_channels = []  # Stores channels filtered by search
 
     def fetch_channels(self):
         """Fetch IPTV channels using MAC authentication."""
@@ -183,23 +167,40 @@ class WindowsIPTVPlayer:
             # Extract the real stream URL
             self.channels = [(ch["name"], ch["cmd"].replace("ffmpeg ", "").strip()) for ch in data]
 
-            self.channel_list.delete(0, tk.END)
-            for channel in self.channels:
-                self.channel_list.insert(tk.END, channel[0])
+            # Initially, display all channels
+            self.filtered_channels = self.channels
+            self.update_channel_list()
 
         except requests.RequestException as e:
             messagebox.showerror("Error", f"Failed to connect: {e}")
 
+    def update_channel_list(self):
+        """Update the Listbox with filtered channels."""
+        self.channel_list.delete(0, tk.END)
+        for channel in self.filtered_channels:
+            self.channel_list.insert(tk.END, channel[0])
+
+    def search_channels(self, event=None):
+        """Filter channels based on the search query."""
+        query = self.search_var.get().lower()
+        if query:
+            self.filtered_channels = [ch for ch in self.channels if query in ch[0].lower()]
+        else:
+            self.filtered_channels = self.channels
+        self.update_channel_list()
+
     def play_stream(self):
+        """Play the selected channel."""
         selected_index = self.channel_list.curselection()
         if not selected_index:
             messagebox.showwarning("Warning", "Please select a channel to play.")
             return
 
-        _, stream_url = self.channels[selected_index[0]]
+        _, stream_url = self.filtered_channels[selected_index[0]]
         self.play_video(stream_url)
 
     def play_video(self, stream_url):
+        """Play IPTV stream using ffplay."""
         print(f"Playing URL: {stream_url}")
 
         ffplay_command = [

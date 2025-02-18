@@ -292,8 +292,15 @@ class WindowsIPTVPlayer:
 
         ffplay_command = [
             "ffplay",
-            "-i", stream_url,
-            "-autoexit"
+            "-autoexit",
+            "-x", "800",
+            "-y", "600",
+            "-fflags", "nobuffer", # Disable buffering
+            "-flags", "low_delay", # Low latency
+            "-sync", "ext", # Sync to external clock 
+            "-avioflags" , "direct" , # Direct I/O, for faster reading
+            "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "2",  # Auto-reconnect if the stream fails
+            "-i", stream_url
         ]
         subprocess.run(ffplay_command)
 

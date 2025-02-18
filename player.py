@@ -10,18 +10,20 @@ CREDENTIALS_DIR = "credentials"
 
 class IPTVUserSelection:
     """First GUI - User Selection or New User Entry"""
-    def __init__(self, root):
-        self.root = root
+    def __init__(self, root: tk.Tk):
+        self.root = root 
         self.root.title("Select IPTV User")
         self.root.geometry("400x250")
+       
+        
 
         # Ensure credentials directory exists
-        if not os.path.exists(CREDENTIALS_DIR):
+        if not os.path.exists(CREDENTIALS_DIR): 
             os.makedirs(CREDENTIALS_DIR)
 
         self.credentials = self.load_credentials()
 
-        tk.Label(root, text="Select User:").pack()
+        tk.Label(root, text="Select User:").pack() 
         
         self.selected_user = StringVar(root)
 
@@ -119,6 +121,8 @@ class NewUserWindow:
         self.root.title("New IPTV User")
         self.root.geometry("400x200")
 
+        
+
         tk.Label(self.root, text="Enter IPTV Portal URL:").pack()
         self.portal_entry = tk.Entry(self.root, width=50)
         self.portal_entry.pack()
@@ -130,10 +134,15 @@ class NewUserWindow:
         self.save_button = tk.Button(self.root, text="Save", command=self.save_user)
         self.save_button.pack()
 
+         # Back Button
+        self.back_button = tk.Button(self.root, text="Back", command=self.go_back, fg="red")
+        self.back_button.pack()
+
     def save_user(self):
         """Save new user credentials."""
         portal_url = self.portal_entry.get().strip()
         mac_address = self.mac_entry.get().strip()
+        
 
         if not portal_url or not mac_address:
             messagebox.showerror("Error", "Both fields must be filled.")
@@ -159,6 +168,14 @@ class NewUserWindow:
         root = tk.Tk()
         IPTVUserSelection(root)
         root.mainloop()
+
+    def go_back(self):
+        """Close the New User window and return to the user selection screen."""
+        self.root.destroy()  # Close current window
+        root = tk.Tk()
+        IPTVUserSelection(root)  # Reopen user selection window
+
+    
 
 class WindowsIPTVPlayer:
     """Main IPTV Player GUI"""

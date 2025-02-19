@@ -300,6 +300,7 @@ class WindowsIPTVPlayer:
             "-sync", "ext", # Sync to external clock 
             "-avioflags" , "direct" , # Direct I/O, for faster reading
             "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "2",  # Auto-reconnect if the stream fails
+            "-loglevel", "quiet",  # Suppress all logs
             "-i", stream_url
         ]
         subprocess.run(ffplay_command)

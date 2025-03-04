@@ -193,10 +193,22 @@ class WindowsIPTVPlayer:
 
         # Search Bar
         tk.Label(root, text="Search Channels:").pack()
+        
+        search_frame = tk.Frame(root)
+        search_frame.pack()
+
         self.search_var = StringVar()
-        self.search_entry = Entry(root, textvariable=self.search_var)
-        self.search_entry.pack()
+        self.search_entry = Entry(search_frame, textvariable=self.search_var, width=30)
+        self.search_entry.pack(side=tk.LEFT)
         self.search_entry.bind("<KeyRelease>", self.search_channels)
+
+        # SSC Button
+        self.ssc_button = tk.Button(search_frame, text="SSC", command=lambda: self.set_search("ssc"))
+        self.ssc_button.pack(side=tk.LEFT, padx=5)
+
+        # BEIN Button
+        self.bein_button = tk.Button(search_frame, text="BEIN", command=lambda: self.set_search("bein"))
+        self.bein_button.pack(side=tk.LEFT, padx=5)
 
         # Channel List UI
         self.channel_list = Listbox(root, width=60, height=10)
@@ -217,13 +229,18 @@ class WindowsIPTVPlayer:
         self.channels = []  # Stores (name, url) tuples
         self.filtered_channels = []  # Stores channels filtered by search
 
+    def set_search(self, text):
+        """Set the search box text and trigger the search."""
+        self.search_var.set(text)
+        self.search_channels()
+
     def go_back(self):
         """Close IPTV player and return to the user selection screen."""
-        self.root.destroy()  # Close current window
+        self.root.destroy()
         root = tk.Tk()
-        IPTVUserSelection(root)  # Reopen user selection window
+        IPTVUserSelection(root)
         root.mainloop()
-        
+
     def fetch_channels(self):
         """Fetch IPTV channels using MAC authentication."""
         auth_url = f"{self.portal_url}server/load.php?type=stb&action=handshake&mac={self.mac_address}"
@@ -295,12 +312,12 @@ class WindowsIPTVPlayer:
             "-autoexit",
             "-x", "800",
             "-y", "600",
-            "-fflags", "nobuffer", # Disable buffering
-            "-flags", "low_delay", # Low latency
-            "-sync", "ext", # Sync to external clock 
-            "-avioflags" , "direct" , # Direct I/O, for faster reading
-            "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "2",  # Auto-reconnect if the stream fails
-            "-loglevel", "quiet",  # Suppress all logs
+            "-fflags", "nobuffer",
+            "-flags", "low_delay",
+            "-sync", "ext",
+            "-avioflags", "direct",
+            "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "2",
+            "-loglevel", "quiet",
             "-i", stream_url
         ]
         subprocess.run(ffplay_command)

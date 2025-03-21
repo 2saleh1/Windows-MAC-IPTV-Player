@@ -59,7 +59,7 @@ The executable will be inside the `dist/` folder.
 ## FFplay Keyboard Controls
 Volume Controls
 - 0: Increase volume
-- 9 (zero): Decrease volume
+- 9 : Decrease volume
 - m: Toggle mute
 
 Audio Channel Controls

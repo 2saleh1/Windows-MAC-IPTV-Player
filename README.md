@@ -58,13 +58,13 @@ The executable will be inside the `dist/` folder.
 ---
 ## FFplay Keyboard Controls
 Volume Controls
-0: Increase volume
-9 (zero): Decrease volume
-m: Toggle mute
+- 0: Increase volume
+- 9 (zero): Decrease volume
+- m: Toggle mute
 
 Audio Channel Controls
-c: Cycle through audio channels (mono, stereo, etc.)
-a: Cycle through audio tracks (when multiple audio tracks are available)
+- c: Cycle through audio channels (mono, stereo, etc.)
+- a: Cycle through audio tracks (when multiple audio tracks are available)
 
 ## Notes
 - If IPTV channels do not load, check your portal URL and MAC address.

@@ -268,8 +268,26 @@ class WindowsIPTVPlayer:
                 messagebox.showerror("Error", "No channels found.")
                 return
 
-            # Extract the real stream URL
-            self.channels = [(ch["name"], ch["cmd"].replace("ffmpeg ", "").strip()) for ch in data]
+            # Process stream URLs properly based on format
+            self.channels = []
+            for ch in data:
+                name = ch["name"]
+                cmd = ch["cmd"].replace("ffmpeg ", "").strip()
+                
+                # Check if the URL is a relative path or contains "localhost"
+                if cmd.startswith("/") or "localhost" in cmd:
+                    # Convert relative URL to absolute using portal URL
+                    base_url = self.portal_url.rstrip('/')
+                    # Extract the stream ID from the command
+                    stream_id = cmd.split('/')[-1].rstrip('_')
+                    
+                    # Reconstruct the URL with proper parameters
+                    stream_url = f"{base_url}/play/live.php?mac={self.mac_address}&stream={stream_id}&extension=ts"
+                else:
+                    # URL is already in correct format
+                    stream_url = cmd
+                
+                self.channels.append((name, stream_url))
 
             # Initially, display all channels
             self.filtered_channels = self.channels

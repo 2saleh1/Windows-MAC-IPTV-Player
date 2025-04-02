@@ -1,20 +1,24 @@
 @echo off
 setlocal
 
-:: Define FFmpeg version and destination
-set FF_VERSION=latest
+:: Define FFmpeg version and directory
+set FF_URL=https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip
 set FF_DIR=C:\ffmpeg
 
-:: Download and extract FFmpeg
+:: Download FFmpeg
 echo Downloading FFmpeg...
-powershell -Command "& {Invoke-WebRequest -Uri 'https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z' -OutFile 'ffmpeg.7z'}"
+powershell -Command "& {Invoke-WebRequest -Uri '%FF_URL%' -OutFile 'ffmpeg.zip'}"
 
+:: Extract FFmpeg
 echo Extracting FFmpeg...
-powershell -Command "& {Expand-Archive -Path 'ffmpeg.7z' -DestinationPath '%FF_DIR%' -Force}"
+tar -xf ffmpeg.zip -C C:\
 
-:: Add to system PATH
+:: Rename extracted folder to C:\ffmpeg
+for /d %%i in (C:\ffmpeg-*) do rename "%%i" ffmpeg
+
+:: Add FFmpeg to system PATH
 echo Adding FFmpeg to system PATH...
-setx /M PATH "%FF_DIR%\ffmpeg-*\bin;%PATH%"
+powershell -Command "& {Start-Process powershell -ArgumentList 'Set-ExecutionPolicy Unrestricted -Scope Process; [System.Environment]::SetEnvironmentVariable(\"Path\", \"$Env:Path;C:\ffmpeg\bin\", [System.EnvironmentVariableTarget]::Machine)' -Verb RunAs}"
 
 echo FFmpeg installation complete!
 pause

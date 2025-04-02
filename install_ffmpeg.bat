@@ -11,14 +11,23 @@ powershell -Command "& {Invoke-WebRequest -Uri '%FF_URL%' -OutFile 'ffmpeg.zip'}
 
 :: Extract FFmpeg
 echo Extracting FFmpeg...
-tar -xf ffmpeg.zip -C C:\
+mkdir "%FF_DIR%"
+powershell -Command "& {Expand-Archive -Path 'ffmpeg.zip' -DestinationPath '%FF_DIR%' -Force}"
 
-:: Rename extracted folder to C:\ffmpeg
-for /d %%i in (C:\ffmpeg-*) do rename "%%i" ffmpeg
+:: Move contents out of subfolder if necessary
+for /d %%i in (%FF_DIR%\*) do ( 
+    if exist "%%i\bin" (
+        xcopy /E /H /Y "%%i\*" "%FF_DIR%\"
+        rmdir /S /Q "%%i"
+    )
+)
 
 :: Add FFmpeg to system PATH
 echo Adding FFmpeg to system PATH...
-powershell -Command "& {Start-Process powershell -ArgumentList 'Set-ExecutionPolicy Unrestricted -Scope Process; [System.Environment]::SetEnvironmentVariable(\"Path\", \"$Env:Path;C:\ffmpeg\bin\", [System.EnvironmentVariableTarget]::Machine)' -Verb RunAs}"
+setx PATH "%FF_DIR%\bin;%PATH%" /M
+
+:: Clean up
+del ffmpeg.zip
 
 echo FFmpeg installation complete!
 pause

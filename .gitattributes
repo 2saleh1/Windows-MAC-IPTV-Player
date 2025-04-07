@@ -1,0 +1,3 @@
+ffmpeg/*.exe filter=lfs diff=lfs merge=lfs -text
+dist/*.exe filter=lfs diff=lfs merge=lfs -text
+build/player/*.pkg filter=lfs diff=lfs merge=lfs -text

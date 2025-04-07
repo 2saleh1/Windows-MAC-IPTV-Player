@@ -327,9 +327,26 @@ class WindowsIPTVPlayer:
         print(f"Playing URL: {stream_url}")
         
         try:
-            # Try with direct ffplay command (no path)
+            # Get the directory where the executable is located
+            if getattr(sys, 'frozen', False):
+                # If running as compiled executable
+                application_path = os.path.dirname(sys.executable)
+                print(f"Running as executable, path: {application_path}")
+            else:
+                # If running as script
+                application_path = os.path.dirname(os.path.abspath(__file__))
+                print(f"Running as script, path: {application_path}")
+            
+            # Path to ffplay relative to the executable
+            ffplay_path = os.path.join(application_path, "ffplay.exe")
+            print(f"Looking for ffplay at: {ffplay_path}")
+            
+            if not os.path.exists(ffplay_path):
+                messagebox.showerror("Error", f"FFplay not found at {ffplay_path}")
+                return
+                
             ffplay_command = [
-                "ffplay",  # Use ffplay from system PATH
+                ffplay_path,
                 "-autoexit",
                 "-x", "800",
                 "-y", "600",
@@ -341,10 +358,12 @@ class WindowsIPTVPlayer:
                 "-loglevel", "quiet",
                 "-i", stream_url
             ]
+            print(f"Executing command: {' '.join(ffplay_command)}")
             subprocess.run(ffplay_command)
             
         except Exception as e:
             messagebox.showerror("Playback Error", f"Error playing stream: {str(e)}")
+            print(f"Exception: {e}")
 
 
 # Start Application

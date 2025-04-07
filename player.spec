@@ -8,7 +8,7 @@ a = Analysis(
         ('C:/ffmpeg/ffmpeg.exe', '.'),
     ],
     datas=[('credentials', 'credentials')],
-    hiddenimports=[],
+    hiddenimports=['sys'],  # Explicitly include sys module
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

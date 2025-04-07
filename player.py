@@ -327,30 +327,24 @@ class WindowsIPTVPlayer:
         print(f"Playing URL: {stream_url}")
         
         try:
-            # Get the directory where the executable is located
-            if getattr(sys, 'frozen', False):
-                # If running as compiled executable
-                application_path = os.path.dirname(sys.executable)
-                ffplay_path = os.path.join(application_path, "ffplay.exe")
-            else:
-                # If running as script, use system ffplay
-                ffplay_path = "ffplay"
-                
-            # Create a batch file to execute ffplay
-            batch_path = os.path.join(os.path.dirname(sys.executable), "play_stream.bat")
-            with open(batch_path, "w") as f:
-                f.write(f'@echo off\n')
-                f.write(f'echo Playing stream...\n')
-                f.write(f'"{ffplay_path}" -autoexit -x 800 -y 600 -fflags nobuffer -flags low_delay -sync ext -avioflags direct -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 2 -i "{stream_url}"\n')
-                f.write(f'if %ERRORLEVEL% NEQ 0 pause\n')
+            # Try with direct ffplay command (no path)
+            ffplay_command = [
+                "ffplay",  # Use ffplay from system PATH
+                "-autoexit",
+                "-x", "800",
+                "-y", "600",
+                "-fflags", "nobuffer",
+                "-flags", "low_delay",
+                "-sync", "ext",
+                "-avioflags", "direct",
+                "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "2",
+                "-loglevel", "quiet",
+                "-i", stream_url
+            ]
+            subprocess.run(ffplay_command)
             
-            # Execute the batch file
-            subprocess.Popen(batch_path, shell=True)
-                
         except Exception as e:
-            error_message = f"Error playing stream: {str(e)}"
-            print(error_message)
-            messagebox.showerror("Playback Error", error_message)
+            messagebox.showerror("Playback Error", f"Error playing stream: {str(e)}")
 
 
 # Start Application

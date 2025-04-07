@@ -324,9 +324,20 @@ class WindowsIPTVPlayer:
     def play_video(self, stream_url):
         """Play IPTV stream using ffplay."""
         print(f"Playing URL: {stream_url}")
-
+        
+        # Get the directory where the executable is located
+        if getattr(sys, 'frozen', False):
+            # If running as compiled executable
+            application_path = os.path.dirname(sys.executable)
+        else:
+            # If running as script
+            application_path = os.path.dirname(os.path.abspath(__file__))
+        
+        # Path to ffplay relative to the executable
+        ffplay_path = os.path.join(application_path, "ffplay.exe")
+        
         ffplay_command = [
-            "ffplay",
+            ffplay_path,
             "-autoexit",
             "-x", "800",
             "-y", "600",

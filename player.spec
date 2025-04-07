@@ -1,19 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['player.py'],
     pathex=[],
-    binaries=[],
-    datas=[],
+    binaries=[
+        ('C:/ffmpeg/ffplay.exe', '.'),
+        ('C:/ffmpeg/ffmpeg.exe', '.'),
+    ],
+    datas=[('credentials', 'credentials')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
-    optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -22,7 +24,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='player',
+    name='IPTV_Player',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,4 +37,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='assets/IPTV_PLAYER.ico'
 )

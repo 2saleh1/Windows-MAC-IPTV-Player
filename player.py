@@ -326,32 +326,11 @@ class WindowsIPTVPlayer:
         """Play IPTV stream using ffplay."""
         print(f"Playing URL: {stream_url}")
         
+        
         try:
-            # Get the directory where the executable is located
-            if getattr(sys, 'frozen', False):
-                # If running as compiled executable
-                application_path = os.path.dirname(sys.executable)
-            else:
-                # If running as script
-                application_path = os.path.dirname(os.path.abspath(__file__))
-            
-            # Look for ffplay in the ffmpeg subfolder
-            ffplay_path = os.path.join(application_path, "ffmpeg", "ffplay.exe")
-            print(f"Looking for ffplay at: {ffplay_path}")
-            
-            if not os.path.exists(ffplay_path):
-                # Fallback to direct path if not found in subfolder
-                ffplay_path = os.path.join(application_path, "ffplay.exe")
-                print(f"Fallback: Looking for ffplay at: {ffplay_path}")
-                
-                if not os.path.exists(ffplay_path):
-                    # Try using system ffplay as last resort
-                    ffplay_path = "ffplay"
-                    print(f"Last resort: Using system ffplay")
-            
             # Use subprocess.Popen instead of subprocess.run for better compatibility
             ffplay_command = [
-                ffplay_path,
+                "ffplay",
                 "-autoexit",
                 "-x", "800",
                 "-y", "600",

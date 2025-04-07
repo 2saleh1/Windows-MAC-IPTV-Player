@@ -21,13 +21,6 @@ A simple IPTV player for Windows using Python and Tkinter. Easily fetch and play
 
 ## Installation
 
-### Option 1: Standalone Executable (Recommended)
-
-- Double-click the executable to run the application
-- No additional installation required - everything is bundled in the executable!
-
-## Option 2: Running from Source Code (For Developers)
-
 ### 1️⃣ Install Python
 
 Download and install Python from: [https://www.python.org/downloads/](https://www.python.org/downloads/)

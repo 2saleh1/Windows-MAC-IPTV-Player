@@ -1,0 +1,20 @@
+@"
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Build directories
+build/
+dist/
+*.spec
+
+# User credentials (sensitive data)
+credentials/*.json
+
+# Binary & executable files
+*.exe
+*.dll
+
+# Keep the .gitignore file
+!.gitignore
+"@ | Out-File -Encoding utf8 .gitignore

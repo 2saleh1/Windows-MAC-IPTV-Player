@@ -331,20 +331,25 @@ class WindowsIPTVPlayer:
             if getattr(sys, 'frozen', False):
                 # If running as compiled executable
                 application_path = os.path.dirname(sys.executable)
-                print(f"Running as executable, path: {application_path}")
             else:
                 # If running as script
                 application_path = os.path.dirname(os.path.abspath(__file__))
-                print(f"Running as script, path: {application_path}")
             
-            # Path to ffplay relative to the executable
-            ffplay_path = os.path.join(application_path, "ffplay.exe")
+            # Look for ffplay in the ffmpeg subfolder
+            ffplay_path = os.path.join(application_path, "ffmpeg", "ffplay.exe")
             print(f"Looking for ffplay at: {ffplay_path}")
             
             if not os.path.exists(ffplay_path):
-                messagebox.showerror("Error", f"FFplay not found at {ffplay_path}")
-                return
+                # Fallback to direct path if not found in subfolder
+                ffplay_path = os.path.join(application_path, "ffplay.exe")
+                print(f"Fallback: Looking for ffplay at: {ffplay_path}")
                 
+                if not os.path.exists(ffplay_path):
+                    # Try using system ffplay as last resort
+                    ffplay_path = "ffplay"
+                    print(f"Last resort: Using system ffplay")
+            
+            # Use subprocess.Popen instead of subprocess.run for better compatibility
             ffplay_command = [
                 ffplay_path,
                 "-autoexit",
@@ -359,12 +364,11 @@ class WindowsIPTVPlayer:
                 "-i", stream_url
             ]
             print(f"Executing command: {' '.join(ffplay_command)}")
-            subprocess.run(ffplay_command)
+            subprocess.Popen(ffplay_command)
             
         except Exception as e:
             messagebox.showerror("Playback Error", f"Error playing stream: {str(e)}")
             print(f"Exception: {e}")
-
 
 # Start Application
 if __name__ == "__main__":

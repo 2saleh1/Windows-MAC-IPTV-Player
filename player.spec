@@ -3,12 +3,12 @@
 a = Analysis(
     ['player.py'],
     pathex=[],
-    binaries=[
-        ('C:/ffmpeg/ffplay.exe', '.'),
-        ('C:/ffmpeg/ffmpeg.exe', '.'),
+    binaries=[],  
+    datas=[
+        ('credentials', 'credentials'),
+        ('ffmpeg', 'ffmpeg'),  
     ],
-    datas=[('credentials', 'credentials')],
-    hiddenimports=['sys'],  # Explicitly include sys module
+    hiddenimports=['sys'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

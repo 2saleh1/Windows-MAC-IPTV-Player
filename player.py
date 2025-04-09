@@ -4,7 +4,6 @@ import requests
 import subprocess
 import os
 import json
-import sys
 import urllib.parse
 
 CREDENTIALS_DIR = "credentials"
@@ -325,29 +324,22 @@ class WindowsIPTVPlayer:
     def play_video(self, stream_url):
         """Play IPTV stream using ffplay."""
         print(f"Playing URL: {stream_url}")
-        
-        
-        try:
-            # Use subprocess.Popen instead of subprocess.run for better compatibility
-            ffplay_command = [
-                "ffplay",
-                "-autoexit",
-                "-x", "800",
-                "-y", "600",
-                "-fflags", "nobuffer",
-                "-flags", "low_delay",
-                "-sync", "ext",
-                "-avioflags", "direct",
-                "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "2",
-                "-loglevel", "quiet",
-                "-i", stream_url
-            ]
-            print(f"Executing command: {' '.join(ffplay_command)}")
-            subprocess.Popen(ffplay_command)
-            
-        except Exception as e:
-            messagebox.showerror("Playback Error", f"Error playing stream: {str(e)}")
-            print(f"Exception: {e}")
+
+        ffplay_command = [
+            "ffplay",
+            "-autoexit",
+            "-x", "800",
+            "-y", "600",
+            "-fflags", "nobuffer",
+            "-flags", "low_delay",
+            "-sync", "ext",
+            "-avioflags", "direct",
+            "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "2",
+            "-loglevel", "quiet",
+            "-i", stream_url
+        ]
+        subprocess.run(ffplay_command)
+
 
 # Start Application
 if __name__ == "__main__":

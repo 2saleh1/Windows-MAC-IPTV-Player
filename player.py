@@ -1,12 +1,157 @@
 import tkinter as tk
-from tkinter import messagebox, Listbox, Scrollbar, OptionMenu, StringVar, simpledialog, Entry
+from tkinter import messagebox, Listbox, Scrollbar, OptionMenu, StringVar, simpledialog, Entry, filedialog
 import requests
 import subprocess
 import os
 import json
 import urllib.parse
+import time
 
 CREDENTIALS_DIR = "credentials"
+CACHE_DIR = "cache"
+
+class M3UExportWindow:
+    """M3U Export Options Window with 3 Simple Buttons"""
+    def __init__(self, parent, channels, mac_address):
+        self.parent = parent
+        self.channels = channels
+        self.mac_address = mac_address
+        
+        self.root = tk.Toplevel(parent.root)
+        self.root.title("Export to M3U")
+        self.root.geometry("400x300")
+        self.root.grab_set()  # Make this window modal
+        
+        # Main frame
+        main_frame = tk.Frame(self.root)
+        main_frame.pack(padx=20, pady=20, fill='both', expand=True)
+        
+        tk.Label(main_frame, text="Choose Export Option:", font=("Arial", 14, "bold")).pack(pady=(0, 20))
+        
+        # Button 1: All Channels
+        self.all_button = tk.Button(main_frame, text="All Channels", 
+                                   command=self.export_all_channels,
+                                   bg="#2196F3", fg="white", font=("Arial", 12, "bold"),
+                                   width=20, height=2)
+        self.all_button.pack(pady=10)
+        
+        # Button 2: SSC and BEIN
+        self.sports_button = tk.Button(main_frame, text="SSC and BEIN", 
+                                      command=self.export_ssc_bein,
+                                      bg="#4CAF50", fg="white", font=("Arial", 12, "bold"),
+                                      width=20, height=2)
+        self.sports_button.pack(pady=10)
+        
+        # Button 3: Custom Keywords
+        self.custom_button = tk.Button(main_frame, text="Choose What You Want", 
+                                      command=self.export_custom,
+                                      bg="#FF9800", fg="white", font=("Arial", 12, "bold"),
+                                      width=20, height=2)
+        self.custom_button.pack(pady=10)
+        
+        # Cancel button
+        self.cancel_button = tk.Button(main_frame, text="Cancel", 
+                                      command=self.root.destroy,
+                                      bg="#f44336", fg="white", font=("Arial", 10),
+                                      width=15)
+        self.cancel_button.pack(pady=(20, 0))
+    
+    def export_all_channels(self):
+        """Export all channels to M3U file"""
+        self.export_to_m3u(self.channels, "all")
+    
+    def export_ssc_bein(self):
+        """Export SSC and BEIN channels to M3U file"""
+        filtered_channels = []
+        for name, url in self.channels:
+            name_lower = name.lower()
+            if 'ssc' in name_lower or 'bein' in name_lower:
+                filtered_channels.append((name, url))
+        
+        if not filtered_channels:
+            messagebox.showwarning("Warning", "No SSC or BEIN channels found.")
+            return
+        
+        self.export_to_m3u(filtered_channels, "ssc_bein")
+    
+    def export_custom(self):
+        """Export channels based on custom user input"""
+        # Ask user for keywords
+        keywords_input = simpledialog.askstring(
+            "Custom Filter", 
+            "Enter keywords to filter channels (separated by commas):\nExample: news, sport, mbc",
+            initialvalue=""
+        )
+        
+        if not keywords_input:
+            return  # User cancelled
+        
+        keywords = [kw.strip().lower() for kw in keywords_input.split(',') if kw.strip()]
+        
+        if not keywords:
+            messagebox.showwarning("Warning", "No valid keywords entered.")
+            return
+        
+        # Filter channels based on keywords
+        filtered_channels = []
+        for name, url in self.channels:
+            name_lower = name.lower()
+            if any(keyword in name_lower for keyword in keywords):
+                filtered_channels.append((name, url))
+        
+        if not filtered_channels:
+            messagebox.showwarning("Warning", f"No channels found matching keywords: {', '.join(keywords)}")
+            return
+        
+        # Use the keywords for filename
+        filter_name = '_'.join(keywords)
+        self.export_to_m3u(filtered_channels, filter_name)
+    
+    def export_to_m3u(self, channels, export_type):
+        """Export the given channels to M3U file"""
+        if not channels:
+            messagebox.showwarning("Warning", "No channels to export.")
+            return
+        
+        # Generate default filename
+        mac_clean = self.mac_address.replace(':', '').lower()
+        default_filename = f"exported_playlist_{export_type}_{mac_clean}.m3u"
+        
+        # Ask user for save location
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".m3u",
+            filetypes=[("M3U files", "*.m3u"), ("All files", "*.*")],
+            initialfile=default_filename
+        )
+        
+        if not file_path:
+            return  # User cancelled
+        
+        try:
+            # Generate M3U content
+            m3u_content = "#EXTM3U\n"
+            
+            for channel_data in channels:
+                channel_name = channel_data[0]
+                # Use the basic URL for M3U (position 1), not the original command
+                stream_url = channel_data[1]
+                
+                # Clean channel name for M3U format
+                clean_name = channel_name.replace('\n', ' ').replace('\r', ' ')
+                m3u_content += f"#EXTINF:-1,{clean_name}\n"
+                m3u_content += f"{stream_url}\n"
+            
+            # Write to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(m3u_content)
+            
+            messagebox.showinfo("Success", 
+                            f"Successfully exported {len(channels)} channels to:\n{file_path}")
+            self.root.destroy()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to export M3U file:\n{str(e)}")
+
 
 class IPTVUserSelection:
     """First GUI - User Selection or New User Entry"""
@@ -14,8 +159,6 @@ class IPTVUserSelection:
         self.root = root 
         self.root.title("Select IPTV User")
         self.root.geometry("400x250")
-       
-        
 
         # Ensure credentials directory exists
         if not os.path.exists(CREDENTIALS_DIR): 
@@ -121,8 +264,6 @@ class NewUserWindow:
         self.root.title("New IPTV User")
         self.root.geometry("400x200")
 
-        
-
         tk.Label(self.root, text="Enter IPTV Portal URL:").pack()
         self.portal_entry = tk.Entry(self.root, width=50)
         self.portal_entry.pack()
@@ -142,7 +283,6 @@ class NewUserWindow:
         """Save new user credentials."""
         portal_url = self.portal_entry.get().strip()
         mac_address = self.mac_entry.get().strip()
-        
 
         if not portal_url or not mac_address:
             messagebox.showerror("Error", "Both fields must be filled.")
@@ -175,14 +315,13 @@ class NewUserWindow:
         root = tk.Tk()
         IPTVUserSelection(root)  # Reopen user selection window
 
-    
 
 class WindowsIPTVPlayer:
     """Main IPTV Player GUI"""
     def __init__(self, root, user_data):
         self.root = root
         self.root.title("Windows IPTV Player")
-        self.root.geometry("500x500")
+        self.root.geometry("500x600")
 
         self.portal_url = user_data["portal_url"]
         self.mac_address = user_data["mac_address"]
@@ -220,14 +359,79 @@ class WindowsIPTVPlayer:
         self.channel_list.config(yscrollcommand=scrollbar.set)
         scrollbar.config(command=self.channel_list.yview)
 
-        self.load_button = tk.Button(root, text="Fetch Channels", command=self.fetch_channels)
-        self.load_button.pack()
+        # Buttons frame
+        buttons_frame = tk.Frame(root)
+        buttons_frame.pack(pady=10)
 
-        self.play_button = tk.Button(root, text="Play", command=self.play_stream)
-        self.play_button.pack()
+        self.load_button = tk.Button(buttons_frame, text="Fetch Channels", command=self.fetch_channels)
+        self.load_button.pack(side=tk.LEFT, padx=5)
+
+        self.play_button = tk.Button(buttons_frame, text="Play", command=self.play_stream)
+        self.play_button.pack(side=tk.LEFT, padx=5)
+
+        # Export to M3U button
+        self.export_button = tk.Button(buttons_frame, text="Export to M3U", command=self.open_export_window, 
+                                     bg="green", fg="white", font=("Arial", 10, "bold"))
+        self.export_button.pack(side=tk.LEFT, padx=5)
+
+        # Clear Cache button
+        self.clear_cache_button = tk.Button(buttons_frame, text="Clear Cache", command=self.clear_cache, fg="red")
+        self.clear_cache_button.pack(side=tk.LEFT, padx=5)
 
         self.channels = []  # Stores (name, url) tuples
         self.filtered_channels = []  # Stores channels filtered by search
+        self.cache_file = os.path.join(CACHE_DIR, f"{self.mac_address.replace(':', '_')}_channels.json")
+        
+        # Create cache directory if it doesn't exist
+        if not os.path.exists(CACHE_DIR):
+            os.makedirs(CACHE_DIR)
+        
+        # Try to load channels from cache
+        self.load_from_cache()
+
+    def open_export_window(self):
+        """Open the M3U export options window"""
+        if not self.channels:
+            messagebox.showwarning("Warning", "Please fetch channels first before exporting.")
+            return
+        
+        M3UExportWindow(self, self.channels, self.mac_address)
+        
+    def load_from_cache(self):
+        """Load channels from cache file if it exists"""
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'r') as f:
+                    cached_data = json.load(f)
+                    self.channels = cached_data
+                    self.filtered_channels = self.channels
+                    self.update_channel_list()
+                    return True
+            except Exception as e:
+                print(f"Error loading cache: {e}")
+        return False
+
+    def save_to_cache(self):
+        """Save channels to cache file"""
+        try:
+            with open(self.cache_file, 'w') as f:
+                json.dump(self.channels, f)
+        except Exception as e:
+            print(f"Error saving cache: {e}")
+
+    def clear_cache(self):
+        """Delete the cache file"""
+        if os.path.exists(self.cache_file):
+            try:
+                os.remove(self.cache_file)
+                messagebox.showinfo("Success", "Cache cleared successfully!")
+                self.channels = []
+                self.filtered_channels = []
+                self.update_channel_list()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to clear cache: {e}")
+        else:
+            messagebox.showinfo("Info", "No cache file exists.")
 
     def set_search(self, text):
         """Set the search box text and trigger the search."""
@@ -240,6 +444,31 @@ class WindowsIPTVPlayer:
         root = tk.Tk()
         IPTVUserSelection(root)
         root.mainloop()
+        
+    def get_stream_link(self, cmd):
+        """Get the actual stream link using create_link API"""
+        create_link_url = f"{self.portal_url}server/load.php?type=itv&action=create_link&mac={self.mac_address}&cmd={urllib.parse.quote(cmd)}&JsHttpRequest=1-xml"
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
+            "Referer": self.portal_url + "index.html",
+            "Origin": self.portal_url.rstrip('/'),
+            "Accept": "*/*",
+            "Cache-Control": "no-cache"
+        }
+        
+        try:
+            response = requests.get(create_link_url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                data = response.json().get('js', {})
+                real_cmd = data.get('cmd', '')
+                if real_cmd and real_cmd != cmd:
+                    print(f"Real stream URL from create_link: {real_cmd}")
+                    return real_cmd
+        except Exception as e:
+            print(f"Error getting stream link: {e}")
+        
+        return None
 
     def fetch_channels(self):
         """Fetch IPTV channels using MAC authentication."""
@@ -249,16 +478,33 @@ class WindowsIPTVPlayer:
         headers = {
             "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
             "Referer": self.portal_url + "index.html",
-            "Origin": self.portal_url
+            "Origin": self.portal_url.rstrip('/'),
+            "Accept": "*/*",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache"
         }
 
         try:
-            auth_response = requests.get(auth_url, headers=headers)
+            # Create a session to maintain cookies
+            session = requests.Session()
+            session.headers.update(headers)
+            
+            # First, perform handshake
+            auth_response = session.get(auth_url)
             if auth_response.status_code != 200:
                 messagebox.showerror("Error", "Failed to authenticate with the portal.")
                 return
 
-            channels_response = requests.get(channels_url, headers=headers)
+            # Extract token if available
+            auth_data = auth_response.json() if auth_response.text.strip().startswith('{') else {}
+            token = auth_data.get('js', {}).get('token', '')
+            
+            # Add token to subsequent requests if available
+            if token:
+                channels_url += f"&token={token}"
+
+            channels_response = session.get(channels_url)
             if channels_response.status_code != 200:
                 messagebox.showerror("Error", "Failed to retrieve the channel list.")
                 return
@@ -268,26 +514,36 @@ class WindowsIPTVPlayer:
                 messagebox.showerror("Error", "No channels found.")
                 return
 
-            # Process stream URLs properly based on format
+            # Process stream URLs with basic logic only (no API calls per channel)
             self.channels = []
+            
+            # Extract portal domain for localhost replacement
+            from urllib.parse import urlparse
+            parsed_portal = urlparse(self.portal_url)
+            portal_domain = parsed_portal.netloc
+            
             for ch in data:
                 name = ch["name"]
-                cmd = ch["cmd"].replace("ffmpeg ", "").strip()
+                original_cmd = ch["cmd"].replace("ffmpeg ", "").strip()
                 
-                # Check if the URL is a relative path or contains "localhost"
-                if cmd.startswith("/") or "localhost" in cmd:
-                    # Convert relative URL to absolute using portal URL
-                    base_url = self.portal_url.rstrip('/')
-                    # Extract the stream ID from the command
-                    stream_id = cmd.split('/')[-1].rstrip('_')
-                    
-                    # Reconstruct the URL with proper parameters
-                    stream_url = f"{base_url}/play/live.php?mac={self.mac_address}&stream={stream_id}&extension=ts"
+                # Store the original command - we'll resolve the real URL when playing
+                # Just do basic localhost replacement for now
+                if original_cmd.startswith("http://localhost"):
+                    stream_url = original_cmd.replace("http://localhost", f"http://{portal_domain}")
+                elif original_cmd.startswith("localhost"):
+                    stream_url = f"http://{portal_domain}" + original_cmd[9:]
+                elif original_cmd.startswith("/"):
+                    stream_url = f"http://{portal_domain}{original_cmd}"
+                elif original_cmd.startswith("http://") or original_cmd.startswith("https://"):
+                    stream_url = original_cmd
                 else:
-                    # URL is already in correct format
-                    stream_url = cmd
+                    stream_url = f"http://{portal_domain}/{original_cmd}"
                 
-                self.channels.append((name, stream_url))
+                # Store both the processed URL and the original command for later use
+                self.channels.append((name, stream_url, original_cmd))
+
+            # Save to cache after successful fetch
+            self.save_to_cache()
 
             # Initially, display all channels
             self.filtered_channels = self.channels
@@ -295,12 +551,15 @@ class WindowsIPTVPlayer:
 
         except requests.RequestException as e:
             messagebox.showerror("Error", f"Failed to connect: {e}")
-
+        except json.JSONDecodeError as e:
+            messagebox.showerror("Error", f"Invalid response format: {e}")
+        
+        
     def update_channel_list(self):
         """Update the Listbox with filtered channels."""
         self.channel_list.delete(0, tk.END)
         for channel in self.filtered_channels:
-            self.channel_list.insert(tk.END, channel[0])
+            self.channel_list.insert(tk.END, channel[0])  # Always use the first element (name)
 
     def search_channels(self, event=None):
         """Filter channels based on the search query."""
@@ -318,13 +577,41 @@ class WindowsIPTVPlayer:
             messagebox.showwarning("Warning", "Please select a channel to play.")
             return
 
-        _, stream_url = self.filtered_channels[selected_index[0]]
-        self.play_video(stream_url)
+        if len(self.filtered_channels[selected_index[0]]) == 3:
+            # New format with original_cmd
+            _, stream_url, original_cmd = self.filtered_channels[selected_index[0]]
+            
+            # Try to get the real stream URL using create_link
+            print(f"Getting real stream URL for: {original_cmd}")
+            real_stream_url = self.get_stream_link(original_cmd)
+            
+            if real_stream_url:
+                # Clean the real stream URL
+                clean_url = real_stream_url.replace("ffmpeg ", "").strip()
+                if clean_url.startswith("http://") or clean_url.startswith("https://"):
+                    final_url = clean_url
+                else:
+                    from urllib.parse import urlparse
+                    parsed_portal = urlparse(self.portal_url)
+                    portal_domain = parsed_portal.netloc
+                    final_url = f"http://{portal_domain}{clean_url}" if clean_url.startswith("/") else f"http://{portal_domain}/{clean_url}"
+            else:
+                # Fallback to the basic URL
+                final_url = stream_url
+        else:
+            # Old format compatibility
+            _, final_url = self.filtered_channels[selected_index[0]]
+        
+        self.play_video(final_url)
 
     def play_video(self, stream_url):
-        """Play IPTV stream using ffplay."""
+        """Play IPTV stream using ffplay with proper headers."""
         print(f"Playing URL: {stream_url}")
 
+        # Add proper headers for authentication
+        user_agent = "Mozilla/5.0 (QtEmbedded; U; Linux; C)"
+        referer = self.portal_url + "index.html"
+        
         ffplay_command = [
             "ffplay",
             "-autoexit",
@@ -335,10 +622,20 @@ class WindowsIPTVPlayer:
             "-sync", "ext",
             "-avioflags", "direct",
             "-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "2",
-            "-loglevel", "quiet",
+            "-user_agent", user_agent,
+            "-headers", f"Referer: {referer}",
+            "-loglevel", "error",  # Changed from quiet to error to see what's happening
             "-i", stream_url
         ]
-        subprocess.run(ffplay_command)
+        
+        try:
+            result = subprocess.run(ffplay_command, capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f"FFplay error: {result.stderr}")
+                messagebox.showerror("Playback Error", f"Failed to play stream:\n{result.stderr}")
+        except Exception as e:
+            print(f"Exception running ffplay: {e}")
+            messagebox.showerror("Error", f"Failed to start player: {e}")
 
 
 # Start Application

@@ -1,7 +1,16 @@
-@"
 # Python bytecode
 __pycache__/
 *.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.DS_Store
 
 # Build directories
 build/
@@ -9,7 +18,8 @@ dist/
 *.spec
 
 # User credentials (sensitive data)
-credentials/*.json
+credentials/
+cache/
 
 # Binary & executable files
 *.exe
@@ -17,4 +27,3 @@ credentials/*.json
 
 # Keep the .gitignore file
 !.gitignore
-"@ | Out-File -Encoding utf8 .gitignore

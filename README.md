@@ -4,6 +4,9 @@ A simple IPTV player for Windows using Python and Tkinter. Easily fetch and play
 
 ![Screenshot](Screenshot.png)
 
+---
+[Download Windows EXE](https://github.com/2saleh1/Windows-MAC-IPTV-Player/releases/download/V1.0.0/MAC.IPTV.Player.exe)
+
 ## Features
 
 - Save multiple IPTV users

@@ -1,99 +1,76 @@
 # Windows IPTV Player
 
-A simple IPTV player for Windows using Python and Tkinter. Easily fetch and play IPTV channels using MAC authentication.
+A simple IPTV player for Windows using Python and Tkinter. Fetch and play IPTV channels using MAC authentication.
 
 ![Screenshot](Screenshot.png)
 
 ---
-## Download EXE For Windows
 
-[Download Windows EXE](https://github.com/2saleh1/Windows-MAC-IPTV-Player/releases/download/V1.0.0/MAC.IPTV.Player.exe)
+## Download
+
+**Windows EXE:**  
+[Download Player](https://github.com/2saleh1/Windows-MAC-IPTV-Player/releases/download/V1.0.0/MAC.IPTV.Player.exe)
+
+---
 
 ## Features
 
 - Save multiple IPTV users
-- Search for channels
-- Delete saved users
-- Play IPTV streams using `ffplay`
+- Search channels
+- Delete users
+- Play streams with ffplay
 
 ---
 
 ## Requirements
 
-- Python 3.10 or newer
+- Python 3.10+
 - `requests` library
-- `ffplay` (part of FFmpeg)
+- FFmpeg (`ffplay`)
 
 ---
 
-## Installation
+## Quick Start
 
-### 1️⃣ Install Python
+1. **Install Python:**  
+   [python.org/downloads](https://www.python.org/downloads/)
 
-Download and install Python from: [https://www.python.org/downloads/](https://www.python.org/downloads/)
-Ensure `Add Python to PATH` is checked during installation.
+2. **Install dependencies:**  
+   ```sh
+   pip install -r requirements.txt
+   ```
 
-### 2️⃣ Install Dependencies
+3. **Install FFmpeg:**  
+   [ffmpeg.org/download.html](https://ffmpeg.org/download.html)  
+   Add `C:\ffmpeg\bin` to PATH.
 
-Open a terminal (Command Prompt or PowerShell) and run:
-
-```sh
-pip install -r requirements.txt
-```
-
-### 3️⃣ Install FFmpeg (Required for Video Playback)
-
-1. Download FFmpeg from: [https://ffmpeg.org/download.html](https://ffmpeg.org/download.html)
-2. Extract the folder (e.g., `C:\ffmpeg`)
-3. Add `C:\ffmpeg\bin` to the system PATH
-4. Verify by running:
-
-```sh
-ffplay -version
-```
+4. **Run the player:**  
+   ```sh
+   python player.py
+   ```
+   Or double-click `run.bat`.
 
 ---
 
-## Running the IPTV Player
-
-Run the app using:
-
-```sh
-python player.py
-```
-
-Or double-click `run.bat` (if available).
-
----
-
-## Building an Executable (Optional)
-
-To create a standalone `.exe` file:
+## Build EXE (Optional)
 
 ```sh
 pyinstaller --onefile --noconsole player.py
 ```
-
-The executable will be inside the `dist/` folder.
+Find the EXE in the `dist` folder.
 
 ---
 
-## FFplay Keyboard Controls
+## FFplay Controls
 
-Volume Controls
+- `0` / `9`: Volume up/down
+- `m`: Mute
+- `c`: Cycle audio channels
+- `a`: Cycle audio tracks
 
-- 0: Increase volume
-- 9 : Decrease volume
-- m: Toggle mute
-
-Audio Channel Controls
-
-- c: Cycle through audio channels (mono, stereo, etc.)
-- a: Cycle through audio tracks (when multiple audio tracks are available)
+---
 
 ## Notes
 
-- If IPTV channels do not load, check your portal URL and MAC address.
-- Ensure `ffplay` is correctly installed and accessible from the command line.
-
----
+- Check portal URL and MAC address if channels don’t load.
+- Make sure `ffplay` works from the command

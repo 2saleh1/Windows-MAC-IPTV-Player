@@ -580,9 +580,16 @@ class IPTVUserSelection:
         tk.Label(user_frame, text="Select User:").pack(side=tk.LEFT, padx=(0, 8))
         self.selected_user = StringVar(root)
         user_keys = list(self.credentials.keys())
-        default_user = user_keys[0] if user_keys else ""
+
+        if not user_keys:
+            messagebox.showinfo("No Users Found", "No IPTV users found. Please create a new user.")
+            self.root.destroy()
+            NewUserWindow()
+            return
+
+        default_user = user_keys[0]
         self.selected_user.set(default_user)
-        self.user_menu = OptionMenu(user_frame, self.selected_user, default_user, *user_keys)
+        self.user_menu = OptionMenu(user_frame, self.selected_user, *user_keys)
         self.user_menu.pack(side=tk.LEFT)
 
         # --- Buttons ---
@@ -633,27 +640,34 @@ class IPTVUserSelection:
         """Load all saved user profiles from the credentials directory."""
         users = {}
         for filename in os.listdir(CREDENTIALS_DIR):
-            if filename.endswith(".json"):
+            # Only load files that end with .json and do NOT contain '_favorites'
+            if filename.endswith(".json") and "_favorites" not in filename:
                 with open(os.path.join(CREDENTIALS_DIR, filename), "r") as f:
                     data = json.load(f)
                     users[filename.replace(".json", "")] = data
         return users
-
+    
+    
     def update_user_menu(self):
         """Refresh the dropdown menu after adding or deleting users."""
+        self.credentials = self.load_credentials()
+        user_keys = list(self.credentials.keys())
+        default_user = user_keys[0] if user_keys else ""
+
+        # Clear and repopulate the OptionMenu
         menu = self.user_menu["menu"]
         menu.delete(0, "end")
-
-        self.credentials = self.load_credentials()
-        for user in self.credentials.keys():
+        for user in user_keys:
             menu.add_command(label=user, command=lambda value=user: self.selected_user.set(value))
 
-        if self.credentials:
-            self.selected_user.set(list(self.credentials.keys())[0])
+        # Set the selected user to the first one if available
+        if user_keys:
+            self.selected_user.set(default_user)
         else:
             messagebox.showinfo("No Users Found", "No IPTV users left. Please create a new user.")
             self.root.destroy()
             NewUserWindow()
+            
 
     def start_player(self):
         """Start the IPTV Player with the selected user."""
@@ -664,11 +678,7 @@ class IPTVUserSelection:
         
         # Save selected theme
         save_theme(self.selected_theme.get())
-
-        user_data = self.credentials[username]
-        self.root.destroy()
-        self.launch_player(user_data)
-
+        # Load user data
         user_data = self.credentials[username]
         self.root.destroy()
         self.launch_player(user_data)
@@ -912,7 +922,12 @@ class NewUserWindow:
         messagebox.showinfo("Success", f"User '{username}' saved successfully!")
         self.root.destroy()
 
-        root = tb.Window()
+        theme = load_theme()
+        if theme == "default":
+            root = tk.Tk()
+        else:
+            root = tb.Window(themename=theme)
+        center_window(root, 400, 250)
         IPTVUserSelection(root)
         root.mainloop()
 
@@ -1259,6 +1274,9 @@ class WindowsIPTVPlayer:
 
         self.portal_url = user_data["portal_url"]
         self.mac_address = user_data["mac_address"]
+        
+        # Initialize favorites for this user profile
+        self.favorites = self.load_favorites()
 
         # Initialize optimized components
         self.requests = OptimizedRequests()
@@ -1300,19 +1318,38 @@ class WindowsIPTVPlayer:
                                     font=("Arial", 10, "bold"), fg="darkblue")
         search_frame.pack(fill=tk.X, padx=15, pady=5)
 
-        # Search bar
-        search_input_frame = tk.Frame(search_frame)
-        search_input_frame.pack(pady=5)
-        
-        tk.Label(search_input_frame, text="Search:", font=("Arial", 10)).pack(side=tk.LEFT)
-        
+        # --- SEARCH BAR & FAVORITES LAYOUT ---
+        search_row = tk.Frame(search_frame)
+        search_row.pack(fill=tk.X, pady=5)
+
+        # Centered search bar
+        search_bar_container = tk.Frame(search_row)
+        search_bar_container.pack(side=tk.LEFT, expand=True)
+
+        tk.Label(search_bar_container, text="Search:", font=("Arial", 10)).pack(side=tk.LEFT)
         self.search_var = StringVar()
-        self.search_entry = Entry(search_input_frame, textvariable=self.search_var, 
+        self.search_entry = Entry(search_bar_container, textvariable=self.search_var, 
                                 width=35, font=("Arial", 10))
         self.search_entry.pack(side=tk.LEFT, padx=5)
         self.search_entry.bind("<KeyRelease>", self.optimized_search)
 
-        # Quick filter buttons
+        # --- FAVORITES SECTION (right of search bar) ---
+        favorites_frame = tk.Frame(search_row)
+        favorites_frame.pack(side=tk.RIGHT, padx=15)
+
+        self.favorite_button = tk.Button(favorites_frame, text="⭐ Add/Remove Favorite", 
+                                        command=self.toggle_favorite, width=18)
+        self.favorite_button.pack(side=tk.TOP, pady=1)
+
+        self.show_favorites_button = tk.Button(favorites_frame, text="Show Favorites", 
+                                            command=self.show_favorites, width=18)
+        self.show_favorites_button.pack(side=tk.TOP, pady=1)
+
+        self.show_all_button = tk.Button(favorites_frame, text="Show All", 
+                                        command=self.show_all_channels, width=18)
+        self.show_all_button.pack(side=tk.TOP, pady=1)
+
+        # Quick filter buttons (below search/favorites row)
         filter_buttons_frame = tk.Frame(search_frame)
         filter_buttons_frame.pack(pady=3)
 
@@ -1462,6 +1499,62 @@ class WindowsIPTVPlayer:
         
         # Try to load channels from permanent cache
         self.load_channels_with_cache()
+        
+        
+        
+    def show_all_channels(self):
+        """Show all channels (remove favorites filter)"""
+        self.filtered_channels = self.channels
+        self.update_channel_list()
+        self.status_var.set(f"Showing all {len(self.channels)} channels")    
+            
+    def get_profile_id(self):
+        # Unique ID for each user profile
+        key = f"{self.portal_url}|{self.mac_address}"
+        return hashlib.md5(key.encode()).hexdigest()
+
+    def get_favorites_path(self):
+        return os.path.join(CREDENTIALS_DIR, f"{self.get_profile_id()}_favorites.json")
+
+    def load_favorites(self):
+        try:
+            with open(self.get_favorites_path(), "r", encoding="utf-8") as f:
+                return set(json.load(f))
+        except:
+            return set()
+
+    def save_favorites(self):
+        with open(self.get_favorites_path(), "w", encoding="utf-8") as f:
+            json.dump(list(self.favorites), f)
+
+    def clear_favorites(self):
+        try:
+            os.remove(self.get_favorites_path())
+        except:
+            pass
+        
+        
+    def toggle_favorite(self):
+        selected_index = self.channel_list.curselection()
+        if not selected_index:
+            messagebox.showinfo("Favorite", "Select a channel first.")
+            return
+        channel = self.filtered_channels[selected_index[0]]
+        channel_name = channel[0]
+        if channel_name in self.favorites:
+            self.favorites.remove(channel_name)
+            messagebox.showinfo("Favorite", f"Removed '{channel_name}' from favorites.")
+        else:
+            self.favorites.add(channel_name)
+            messagebox.showinfo("Favorite", f"Added '{channel_name}' to favorites.")
+        self.save_favorites()
+        
+        
+    def show_favorites(self):
+        fav_channels = [ch for ch in self.channels if ch[0] in self.favorites]
+        self.filtered_channels = fav_channels
+        self.update_channel_list()
+        self.status_var.set(f"Showing {len(fav_channels)} favorites")
        
         
         

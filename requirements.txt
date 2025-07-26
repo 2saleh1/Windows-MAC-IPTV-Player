@@ -1,2 +1,6 @@
 requests
+ttkbootstrap
+pillow
+urllib3
+psutilrequests
 

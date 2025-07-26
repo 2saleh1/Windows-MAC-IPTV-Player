@@ -1,3 +1,12 @@
+# ==========================================================
+#   Windows-MAC-IPTV-Player
+#   Created by Saleh (github.com/2saleh1)
+# ==========================================================
+
+import json
+import sys
+import shlex
+import ttkbootstrap as tb
 import tkinter as tk
 from tkinter import messagebox, Listbox, Scrollbar, OptionMenu, StringVar, simpledialog, Entry, filedialog,ttk
 import requests
@@ -18,8 +27,36 @@ import re
 from datetime import datetime
 
 
+THEME_CONFIG_FILE = "config.json"
+THEME_LIST = [
+    "superhero", "darkly", "cyborg", "solar", "vapor", "flatly", "journal", "minty", "litera", "default"
+]
+
+def load_theme():
+    try:
+        with open(THEME_CONFIG_FILE, "r") as f:
+            return json.load(f).get("theme", "superhero")
+    except:
+        return "superhero"
+
+def save_theme(theme):
+    with open(THEME_CONFIG_FILE, "w") as f:
+        json.dump({"theme": theme}, f)
+        
+
+
+def center_window(window, width=400, height=250):
+    window.update_idletasks()
+    screen_width = window.winfo_screenwidth()
+    screen_height = window.winfo_screenheight()
+    x = (screen_width // 2) - (width // 2)
+    y = (screen_height // 2) - (height // 2)
+    window.geometry(f"{width}x{height}+{x}+{y}")
+
+
 CREDENTIALS_DIR = "credentials"
 CACHE_DIR = "cache"
+
 
 
 
@@ -271,9 +308,10 @@ class M3UExportWindow:
         self.channels = channels
         self.mac_address = mac_address
         
-        self.root = tk.Toplevel(parent.root)
+        self.root =tb.Toplevel(parent.root)
         self.root.title("Export to M3U")
         self.root.geometry("450x350")
+        center_window(self.root, 450, 350)
         self.root.grab_set()  # Make this window modal
         
         # Main frame
@@ -433,7 +471,7 @@ class M3UExportWindow:
     def _export_with_real_urls(self, channels, file_path):
         """Export with real URLs using threading"""
         # Show progress window
-        progress_window = tk.Toplevel(self.root)
+        progress_window = tb.Toplevel(self.root)
         progress_window.title("Exporting...")
         progress_window.geometry("400x150")
         progress_window.grab_set()
@@ -514,8 +552,11 @@ class IPTVUserSelection:
     """First GUI - User Selection or New User Entry"""
     def __init__(self, root: tk.Tk):
         self.root = root 
-        self.root.title("Select IPTV User")
+        self.root.title("Select IPTV User - Created by Saleh (github.com/2saleh1)")
         self.root.geometry("400x250")
+        
+        footer = tk.Label(root, text="Created by Saleh  |  github.com/2saleh1", fg="gray", font=("Arial", 8))
+        footer.pack(side=tk.BOTTOM, pady=2)
 
         # Ensure credentials directory exists
         if not os.path.exists(CREDENTIALS_DIR): 
@@ -523,9 +564,36 @@ class IPTVUserSelection:
 
         self.credentials = self.load_credentials()
 
-        tk.Label(root, text="Select User:").pack() 
-        
+        # --- Theme selection at the top, centered ---
+        theme_frame = tk.Frame(root)
+        theme_frame.pack(pady=(18, 8))  # Top padding
+
+        tk.Label(theme_frame, text="Choose Theme:").pack(side=tk.LEFT, padx=(0, 8))
+        self.selected_theme = StringVar(root)
+        self.selected_theme.set(load_theme())
+        self.theme_menu = OptionMenu(theme_frame, self.selected_theme, *THEME_LIST, command=self.on_theme_change)
+        self.theme_menu.pack(side=tk.LEFT)
+
+        # --- User selection ---
+        user_frame = tk.Frame(root)
+        user_frame.pack(pady=(0, 10))
+        tk.Label(user_frame, text="Select User:").pack(side=tk.LEFT, padx=(0, 8))
         self.selected_user = StringVar(root)
+        user_keys = list(self.credentials.keys())
+        default_user = user_keys[0] if user_keys else ""
+        self.selected_user.set(default_user)
+        self.user_menu = OptionMenu(user_frame, self.selected_user, default_user, *user_keys)
+        self.user_menu.pack(side=tk.LEFT)
+
+        # --- Buttons ---
+        self.start_button = tk.Button(root, text="Start", command=self.start_player)
+        self.start_button.pack(pady=(5, 0))
+
+        self.new_button = tk.Button(root, text="New", command=self.open_new_user_window)
+        self.new_button.pack()
+
+        self.delete_button = tk.Button(root, text="Delete User", command=self.delete_user, fg="red")
+        self.delete_button.pack()
 
         # If no users exist, prompt the user to create one
         if not self.credentials:
@@ -533,23 +601,33 @@ class IPTVUserSelection:
             self.root.destroy()
             NewUserWindow()
             return
+        
+        
+        
+        
+        
+    
+        
+    def on_theme_change(self, selected_theme):
+        save_theme(selected_theme)
+        self.root.destroy()
+        if selected_theme == "default":
+            # Fully restart the script to clear ttkbootstrap styles
+            script = sys.argv[0]
+            if " " in script:
+                script = f'"{script}"'
+            os.execl(sys.executable, sys.executable, script, *sys.argv[1:])
+        else:
+            root = tb.Window(themename=selected_theme)
+            center_window(root, 400, 250)
+            IPTVUserSelection(root)
+            root.mainloop()
+            
+    
 
-        # Set the first available user as default
-        self.selected_user.set(next(iter(self.credentials)))  
+            
+    
 
-        # Create the dropdown menu
-        self.user_menu = OptionMenu(root, self.selected_user, *self.credentials.keys())
-        self.user_menu.pack()
-
-        # Buttons
-        self.start_button = tk.Button(root, text="Start", command=self.start_player)
-        self.start_button.pack()
-
-        self.new_button = tk.Button(root, text="New", command=self.open_new_user_window)
-        self.new_button.pack()
-
-        self.delete_button = tk.Button(root, text="Delete User", command=self.delete_user, fg="red")
-        self.delete_button.pack()
 
     def load_credentials(self):
         """Load all saved user profiles from the credentials directory."""
@@ -583,6 +661,13 @@ class IPTVUserSelection:
         if username not in self.credentials:
             messagebox.showwarning("Warning", "Please select a valid user.")
             return
+        
+        # Save selected theme
+        save_theme(self.selected_theme.get())
+
+        user_data = self.credentials[username]
+        self.root.destroy()
+        self.launch_player(user_data)
 
         user_data = self.credentials[username]
         self.root.destroy()
@@ -608,17 +693,26 @@ class IPTVUserSelection:
             self.update_user_menu()
 
     def launch_player(self, user_data):
-        """Launch IPTV Player with selected user data."""
-        root = tk.Tk()
-        WindowsIPTVPlayer(root, user_data)
-        root.mainloop()
+            theme = load_theme()
+            if theme == "default":
+                root = tk.Tk()
+            else:
+                root = tb.Window(themename=theme)
+            center_window(root, 750, 700)  # Match your main player window size
+            WindowsIPTVPlayer(root, user_data)
+            root.mainloop()
 
 class NewUserWindow:
     """New User Creation Window with connection testing"""
     def __init__(self):
-        self.root = tk.Tk()
+        theme = load_theme()
+        if theme == "default":
+            self.root = tk.Tk()
+        else:
+            self.root = tb.Window(themename=theme)
         self.root.title("New IPTV User")
         self.root.geometry("450x250")
+        center_window(self.root, 450, 250)
 
         tk.Label(self.root, text="Enter IPTV Portal URL:").pack()
         self.portal_entry = tk.Entry(self.root, width=50)
@@ -681,7 +775,7 @@ class NewUserWindow:
         self.portal_entry.insert(0, portal_url.rstrip('/'))
 
         # Show progress window
-        progress_window = tk.Toplevel(self.root)
+        progress_window = tb.Toplevel(self.root)
         progress_window.title("Testing Connection...")
         progress_window.geometry("350x120")
         progress_window.grab_set()
@@ -818,7 +912,7 @@ class NewUserWindow:
         messagebox.showinfo("Success", f"User '{username}' saved successfully!")
         self.root.destroy()
 
-        root = tk.Tk()
+        root = tb.Window()
         IPTVUserSelection(root)
         root.mainloop()
 
@@ -863,9 +957,14 @@ class NewUserWindow:
         
         # Short delay to ensure processes are stopped
         time.sleep(1)
-        
+            
         self.root.destroy()
-        root = tk.Tk()
+        theme = load_theme()
+        if theme == "default":
+            root = tk.Tk()
+        else:
+            root = tb.Window(themename=theme)
+        center_window(root, 400, 250)
         IPTVUserSelection(root)
         root.mainloop()
         
@@ -877,9 +976,10 @@ class VODContentWindow:
         self.content_type = content_type  # 'series', 'movies', etc.
         self.content_data = content_data
         
-        self.root = tk.Toplevel(parent.root)
+        self.root = tb.Toplevel(parent.root)
         self.root.title(f"{content_type.title()} Browser")
         self.root.geometry("800x600")
+        center_window(self.root, 800, 600)
         self.root.grab_set()
         
         # Search frame
@@ -1025,7 +1125,7 @@ class VODContentWindow:
     
     def show_episodes_window(self, series_name, episodes):
         """Show episodes in a new window"""
-        episodes_window = tk.Toplevel(self.root)
+        episodes_window = tb.Toplevel(self.root)
         episodes_window.title(f"Episodes - {series_name}")
         episodes_window.geometry("700x500")
         episodes_window.grab_set()
@@ -1151,7 +1251,7 @@ class WindowsIPTVPlayer:
     def __init__(self, root, user_data):
         """Initialize Windows IPTV Player with clean, compact GUI"""
         self.root = root
-        self.root.title("Windows IPTV Player - Direct Play")
+        self.root.title("Windows IPTV Player - by Saleh (github.com/2saleh1)")
         self.root.geometry("750x700")  # ✅ INCREASED SIZE: was 650x550 - now shows all buttons properly
         
         # ✅ Add window close protocol
@@ -1509,7 +1609,7 @@ class WindowsIPTVPlayer:
 
     def show_loading_progress(self):
         """Show loading progress window"""
-        self.loading_progress = tk.Toplevel(self.root)
+        self.loading_progress = tb.Toplevel(self.root)
         self.loading_progress.title("Loading Channels...")
         self.loading_progress.geometry("400x150")
         self.loading_progress.resizable(False, False)
@@ -2644,7 +2744,7 @@ class WindowsIPTVPlayer:
             
     def show_provider_analysis_results(self):
         """Show comprehensive analysis results to user"""
-        analysis_window = tk.Toplevel(self.root)
+        analysis_window = tb.Toplevel(self.root)
         analysis_window.title("🔬 Provider Analysis Results")
         analysis_window.geometry("600x500")
         analysis_window.grab_set()
@@ -4182,7 +4282,12 @@ class WindowsIPTVPlayer:
     def go_back(self):
         """Go back to user selection"""
         self.root.destroy()
-        root = tk.Tk()
+        theme = load_theme()
+        if theme == "default":
+            root = tk.Tk()
+        else:
+            root = tb.Window(themename=theme)
+        center_window(root, 400, 250)
         IPTVUserSelection(root)
         root.mainloop()
 
@@ -4700,7 +4805,7 @@ class WindowsIPTVPlayer:
         )
         
         # Create info window
-        info_window = tk.Toplevel(self.root)
+        info_window = tb.Toplevel(self.root)
         info_window.title("Player Information")
         info_window.geometry("420x380")
         info_window.grab_set()
@@ -5244,7 +5349,7 @@ class WindowsIPTVPlayer:
             channel_name, stream_url, original_cmd = self.filtered_channels[selected_index[0]]
             
             # Show event mode dialog
-            event_window = tk.Toplevel(self.root)
+            event_window = tb.Toplevel(self.root)
             event_window.title("🏆 High-Traffic Event Mode")
             event_window.geometry("400x250")
             event_window.grab_set()
@@ -5276,7 +5381,7 @@ class WindowsIPTVPlayer:
 
     def test_server_connection(self):
         """Test connection to IPTV server"""
-        test_window = tk.Toplevel(self.root)
+        test_window = tb.Toplevel(self.root)
         test_window.title("Server Connection Test")
         test_window.geometry("350x200")
         test_window.grab_set()
@@ -5457,7 +5562,7 @@ class WindowsIPTVPlayer:
         
     def show_high_load_options(self, channel_name, original_cmd):
         """Show options when servers are overloaded"""
-        options_window = tk.Toplevel(self.root)
+        options_window = tb.Toplevel(self.root)
         options_window.title("Server High Load Detected")
         options_window.geometry("450x300")
         options_window.grab_set()
@@ -5512,7 +5617,7 @@ class WindowsIPTVPlayer:
         
     def continuous_retry_mode(self, channel_name, original_cmd):
         """Continuous retry with backoff during high load"""
-        retry_window = tk.Toplevel(self.root)
+        retry_window = tb.Toplevel(self.root)
         retry_window.title("Auto-Retry Mode")
         retry_window.geometry("400x200")
         retry_window.grab_set()
@@ -5602,7 +5707,7 @@ class WindowsIPTVPlayer:
 
     def show_alternatives_window(self, original_name, alternatives):
         """Show alternative streams window"""
-        alt_window = tk.Toplevel(self.root)
+        alt_window = tb.Toplevel(self.root)
         alt_window.title("Alternative Streams")
         alt_window.geometry("500x400")
         alt_window.grab_set()
@@ -5877,7 +5982,7 @@ class WindowsIPTVPlayer:
     def show_cache_status(self):
         """Show cache status window during initial download"""
         try:
-            cache_window = tk.Toplevel(self.root)
+            cache_window = tb.Toplevel(self.root)
             cache_window.title("Downloading Stream...")
             cache_window.geometry("350x140")
             cache_window.resizable(False, False)
@@ -5957,7 +6062,7 @@ class WindowsIPTVPlayer:
 
     def show_vod_categories(self, content_type, categories):
         """Show VOD categories selection"""
-        cat_window = tk.Toplevel(self.root)
+        cat_window = tb.Toplevel(self.root)
         cat_window.title(f"{content_type.title()} Categories")
         cat_window.geometry("400x500")
         cat_window.grab_set()
@@ -6144,6 +6249,11 @@ class WindowsIPTVPlayer:
     
 # Start Application
 if __name__ == "__main__":
-    root = tk.Tk()
+    theme = load_theme()
+    if theme == "default":
+        root = tk.Tk()
+    else:
+        root = tb.Window(themename=theme)
+    center_window(root, 400, 250)
     IPTVUserSelection(root)
     root.mainloop()

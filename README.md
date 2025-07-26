@@ -50,14 +50,6 @@ A simple IPTV player for Windows using Python and Tkinter. Fetch and play IPTV c
    ```
    Or double-click `run.bat`.
 
----
-
-## Build EXE (Optional)
-
-```sh
-pyinstaller --onefile --noconsole player.py
-```
-Find the EXE in the `dist` folder.
 
 ---
 

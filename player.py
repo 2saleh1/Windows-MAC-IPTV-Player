@@ -66,11 +66,11 @@ class ConnectionManager:
         self.parent = parent
         self.retry_count = 3
         self.retry_delay = 2
-    
+
     def get_stream_with_retry(self, cmd, max_retries=3):
         """Get stream with automatic retry and session refresh"""
         original_stream_id = None
-        
+
         # Extract stream ID from original command for preservation
         if "stream=" in cmd:
             try:
@@ -81,18 +81,23 @@ class ConnectionManager:
                     print(f"🎯 Preserving stream ID: {original_stream_id}")
             except:
                 pass
-        
+
         for attempt in range(max_retries):
             try:
                 stream_url = self.parent.get_stream_link(cmd)
                 if stream_url:
                     clean_url = stream_url.replace("ffmpeg ", "").strip()
-                    
-                    # ✅ Ensure stream ID is present in final URL
-                    if original_stream_id and "stream=" in clean_url and "stream=&" in clean_url:
-                        clean_url = clean_url.replace("stream=&", f"stream={original_stream_id}&")
-                        print(f"🔧 Restored stream ID in final URL")
-                    
+
+                    # --- PATCH: Ensure stream ID is present if needed ---
+                    if original_stream_id:
+                        import re
+                        # If stream= is present but empty, patch it
+                        clean_url = re.sub(r'stream=(&|$)', lambda m: f'stream={original_stream_id}{m.group(1)}', clean_url)
+                        # If stream param is missing, add it before play_token
+                        if "stream=" not in clean_url and "play_token=" in clean_url:
+                            parts = clean_url.split("play_token=")
+                            clean_url = f"{parts[0]}stream={original_stream_id}&play_token={parts[1]}"
+
                     # Build proper URL if needed
                     if clean_url.startswith("http://") or clean_url.startswith("https://"):
                         print(f"✅ Got real URL (attempt {attempt + 1}): {clean_url}")
@@ -106,29 +111,33 @@ class ConnectionManager:
                         return final_url
                 else:
                     print(f"❌ No stream URL returned (attempt {attempt + 1})")
-                    
+
                     # If this is not the last attempt, try refreshing session
                     if attempt < max_retries - 1:
                         print("🔄 Trying session refresh...")
                         refreshed_url = self.parent.refresh_session_and_retry(cmd)
                         if refreshed_url:
                             clean_url = refreshed_url.replace("ffmpeg ", "").strip()
-                            
-                            # ✅ Ensure stream ID is present
-                            if original_stream_id and "stream=" in clean_url and "stream=&" in clean_url:
-                                clean_url = clean_url.replace("stream=&", f"stream={original_stream_id}&")
-                            
+
+                            # --- PATCH: Ensure stream ID is present if needed ---
+                            if original_stream_id:
+                                import re
+                                clean_url = re.sub(r'stream=(&|$)', lambda m: f'stream={original_stream_id}{m.group(1)}', clean_url)
+                                if "stream=" not in clean_url and "play_token=" in clean_url:
+                                    parts = clean_url.split("play_token=")
+                                    clean_url = f"{parts[0]}stream={original_stream_id}&play_token={parts[1]}"
+
                             if clean_url.startswith("http://") or clean_url.startswith("https://"):
                                 print(f"✅ Got URL after refresh: {clean_url}")
                                 return clean_url
-                    
+
             except Exception as e:
                 print(f"❌ Stream fetch attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
                     print(f"⏳ Retrying in {self.retry_delay} seconds...")
                     time.sleep(self.retry_delay)
                     continue
-        
+
         print("❌ All retry attempts failed")
         return None
     
@@ -1748,7 +1757,6 @@ class WindowsIPTVPlayer:
     def _fetch_channels_background(self):
         """Enhanced background thread for fetching channels with better timeout handling"""
         try:
-            # ✅ ENHANCED: Try multiple endpoint variations for different providers
             base_endpoints = [
                 # Standard MAG endpoints
                 {
@@ -1775,47 +1783,42 @@ class WindowsIPTVPlayer:
                     "auth": f"{self.portal_url}handshake?mac={self.mac_address}",
                     "channels": f"{self.portal_url}channels?mac={self.mac_address}"
                 },
-                # ✅ NEW: CDN-specific endpoints for providers like 4k-cdn
+                # CDN-specific endpoints for providers like 4k-cdn
                 {
                     "auth": f"{self.portal_url}c/",
                     "channels": f"{self.portal_url}c/?get=channels&mac={self.mac_address}"
                 },
-                # ✅ NEW: Alternative CDN channels endpoint  
                 {
                     "auth": f"{self.portal_url}c/",
                     "channels": f"{self.portal_url}c/?action=get_live_streams&mac={self.mac_address}"
                 },
-                # ✅ NEW: CDN with different parameters
                 {
                     "auth": f"{self.portal_url}c/",
                     "channels": f"{self.portal_url}c/channels.php?mac={self.mac_address}"
                 },
-                # ✅ NEW: CDN JSON API
                 {
                     "auth": f"{self.portal_url}c/",
                     "channels": f"{self.portal_url}c/api.php?action=channels&mac={self.mac_address}"
                 },
-                # ✅ NEW: Web interface scraping for HTML-based providers
                 {
                     "auth": f"{self.portal_url}c/",
                     "channels": f"{self.portal_url}c/index.php?mac={self.mac_address}&action=get_channels"
                 },
-                # ✅ NEW: Alternative web interface
                 {
                     "auth": f"{self.portal_url}c/",
                     "channels": f"{self.portal_url}c/?mac={self.mac_address}&get=live"
                 },
-                # ✅ NEW: Xtream Codes API style
+                # Xtream Codes API style
                 {
                     "auth": f"{self.portal_url}player_api.php?username={self.mac_address}&password=&action=get_live_categories",
                     "channels": f"{self.portal_url}player_api.php?username={self.mac_address}&password=&action=get_live_streams"
                 },
-                # ✅ NEW: M3U playlist style
+                # M3U playlist style
                 {
                     "auth": f"{self.portal_url}get.php?username={self.mac_address}&password=&type=m3u_plus",
                     "channels": f"{self.portal_url}get.php?username={self.mac_address}&password=&type=m3u_plus"
                 },
-                # ✅ NEW: Direct m3u without auth
+                # Direct m3u without auth
                 {
                     "auth": f"{self.portal_url}playlist.m3u8?mac={self.mac_address}",
                     "channels": f"{self.portal_url}playlist.m3u8?mac={self.mac_address}"
@@ -1833,31 +1836,22 @@ class WindowsIPTVPlayer:
             if self.cancel_loading:
                 return
 
-            timeout_strategies = [
-                (10, 20),   # 10s connect, 20s read (fast attempt)
-                (15, 30),   # 15s connect, 30s read
-                (30, 45),   # 30s connect, 45s read  
-            ]
-
             self.requests.session.headers.update(headers)
-            
             successful_endpoints = None
             auth_response = None
-            
-            # ✅ Try different endpoint structures
+
             for endpoint_idx, endpoints in enumerate(base_endpoints):
                 if self.cancel_loading:
                     return
-                    
+
                 self.update_progress(f"Testing endpoint structure {endpoint_idx + 1}/{len(base_endpoints)}...")
                 print(f"🔍 Testing endpoint structure {endpoint_idx + 1}: {endpoints['auth']}")
-                
-                # ✅ NEW: Special handling for M3U and non-auth endpoints
+
+                # Special handling for M3U and non-auth endpoints
                 if "playlist.m3u8" in endpoints['auth'] or "get.php" in endpoints['auth']:
                     try:
                         self.update_progress(f"Testing direct playlist access...")
                         response = self.requests.session.get(endpoints["channels"], timeout=(10, 20))
-                        
                         if response.status_code == 200:
                             print(f"✅ Direct playlist access successful")
                             m3u_content = response.text
@@ -1866,17 +1860,14 @@ class WindowsIPTVPlayer:
                                 if channels:
                                     self.root.after(0, lambda: self._update_channels_ui(channels))
                                     return
-                            
                     except Exception as e:
                         print(f"❌ Direct playlist failed: {e}")
                         continue
-                
-                # ✅ NEW: Special handling for Xtream Codes API
+
                 elif "player_api.php" in endpoints['auth']:
                     try:
                         self.update_progress(f"Testing Xtream Codes API...")
                         response = self.requests.session.get(endpoints["channels"], timeout=(10, 20))
-                        
                         if response.status_code == 200:
                             try:
                                 data = response.json()
@@ -1888,51 +1879,28 @@ class WindowsIPTVPlayer:
                                         return
                             except:
                                 pass
-                            
                     except Exception as e:
                         print(f"❌ Xtream API failed: {e}")
                         continue
-                
-                # Try authentication with this endpoint structure
-                for i, (connect_timeout, read_timeout) in enumerate(timeout_strategies):
-                    if self.cancel_loading:
-                        return
-                        
-                    try:
-                        self.update_progress(f"Auth attempt {i+1} with timeout: {connect_timeout}s connect, {read_timeout}s read")
-                        print(f"🔐 Auth attempt {i+1} with timeout: {connect_timeout}s connect, {read_timeout}s read")
-                        
-                        auth_response = self.requests.session.get(endpoints["auth"], timeout=(connect_timeout, read_timeout))
-                        
-                        if auth_response.status_code == 200:
-                            print(f"✅ Authentication successful with endpoint structure {endpoint_idx + 1}, timeout strategy {i+1}")
-                            successful_endpoints = endpoints
-                            break
-                        else:
-                            print(f"❌ Auth failed with status {auth_response.status_code} - trying next timeout")
-                            
-                    except requests.exceptions.ConnectTimeout:
-                        print(f"⏰ Connect timeout ({connect_timeout}s) on attempt {i+1}")
-                        if i == len(timeout_strategies) - 1:
-                            print(f"❌ All timeouts failed for endpoint structure {endpoint_idx + 1}")
-                            break
-                        continue
-                    except requests.exceptions.ReadTimeout:
-                        print(f"⏰ Read timeout ({read_timeout}s) on attempt {i+1}")
-                        if i == len(timeout_strategies) - 1:
-                            print(f"❌ All timeouts failed for endpoint structure {endpoint_idx + 1}")
-                            break
-                        continue
-                    except Exception as e:
-                        print(f"❌ Auth error on attempt {i+1}: {e}")
-                        if i == len(timeout_strategies) - 1:
-                            print(f"❌ All attempts failed for endpoint structure {endpoint_idx + 1}")
-                            break
-                        continue
-                
-                # If we found working endpoints, break out of endpoint loop
-                if successful_endpoints:
-                    break
+
+                # Try authentication with this endpoint structure (only one attempt)
+                try:
+                    connect_timeout, read_timeout = 10, 20
+                    self.update_progress(f"Auth attempt with timeout: {connect_timeout}s connect, {read_timeout}s read")
+                    print(f"🔐 Auth attempt with timeout: {connect_timeout}s connect, {read_timeout}s read")
+                    auth_response = self.requests.session.get(endpoints["auth"], timeout=(connect_timeout, read_timeout))
+                    if auth_response.status_code == 200:
+                        print(f"✅ Authentication successful with endpoint structure {endpoint_idx + 1}")
+                        successful_endpoints = endpoints
+                        break  # Stop trying other endpoint structures
+                    else:
+                        print(f"❌ Auth failed with status {auth_response.status_code}")
+                except requests.exceptions.ConnectTimeout:
+                    print(f"⏰ Connect timeout ({connect_timeout}s)")
+                except requests.exceptions.ReadTimeout:
+                    print(f"⏰ Read timeout ({read_timeout}s)")
+                except Exception as e:
+                    print(f"❌ Auth error: {e}")
 
             if not successful_endpoints or not auth_response or auth_response.status_code != 200:
                 self.show_error_threadsafe("Authentication failed with all endpoint structures.\n\n"
@@ -1943,7 +1911,7 @@ class WindowsIPTVPlayer:
             if self.cancel_loading:
                 return
 
-            # ✅ ENHANCED: Better token extraction
+            # Extract token if present
             try:
                 if auth_response.text.strip():
                     auth_data = auth_response.json()
@@ -1954,7 +1922,7 @@ class WindowsIPTVPlayer:
             except:
                 print("⚠️ Non-JSON auth response, proceeding without token")
                 token = ''
-            
+
             # Build channels URL with token if we have one
             channels_url = successful_endpoints["channels"]
             if token:
@@ -1963,77 +1931,53 @@ class WindowsIPTVPlayer:
 
             self.update_progress("Fetching channel list...")
             print(f"📺 Using channels URL: {channels_url}")
-            
-            # Try fetching channels with the successful endpoint
-            channels_response = None
-            for i, (connect_timeout, read_timeout) in enumerate(timeout_strategies):
-                if self.cancel_loading:
-                    return
-                    
-                try:
-                    self.update_progress(f"📺 Channels attempt {i+1} with timeout: {connect_timeout}s connect, {read_timeout}s read")
-                    print(f"📺 Channels attempt {i+1} with timeout: {connect_timeout}s connect, {read_timeout}s read")
-                    
-                    channels_response = self.requests.session.get(channels_url, timeout=(connect_timeout, read_timeout))
-                    
-                    if channels_response.status_code == 200:
-                        print(f"✅ Channels fetch successful with timeout strategy {i+1}")
-                        break
-                    else:
-                        print(f"❌ Channels failed with status {channels_response.status_code}")
-                        
-                except requests.exceptions.ConnectTimeout:
-                    print(f"⏰ Connect timeout ({connect_timeout}s) on channels attempt {i+1}")
-                    if i == len(timeout_strategies) - 1:
-                        self.show_error_threadsafe("Server is too slow to respond.\nTry again later or use a VPN.")
-                        return
-                    continue
-                except requests.exceptions.ReadTimeout:
-                    print(f"⏰ Read timeout ({read_timeout}s) on channels attempt {i+1}")
-                    if i == len(timeout_strategies) - 1:
-                        self.show_error_threadsafe("Server response is too slow.\nTry again later or contact provider.")
-                        return
-                    continue
-                except Exception as e:
-                    print(f"❌ Channels error on attempt {i+1}: {e}")
-                    if i == len(timeout_strategies) - 1:
-                        self.show_error_threadsafe(f"Failed to get channels: {str(e)}")
-                        return
-                    continue
+
+            # Fetch channels (only one attempt)
+            try:
+                connect_timeout, read_timeout = 10, 20
+                self.update_progress(f"Channels attempt with timeout: {connect_timeout}s connect, {read_timeout}s read")
+                print(f"📺 Channels attempt with timeout: {connect_timeout}s connect, {read_timeout}s read")
+                channels_response = self.requests.session.get(channels_url, timeout=(connect_timeout, read_timeout))
+            except requests.exceptions.ConnectTimeout:
+                print(f"⏰ Connect timeout ({connect_timeout}s) on channels")
+                self.show_error_threadsafe("Server is too slow to respond.\nTry again later or use a VPN.")
+                return
+            except requests.exceptions.ReadTimeout:
+                print(f"⏰ Read timeout ({read_timeout}s) on channels")
+                self.show_error_threadsafe("Server response is too slow.\nTry again later or contact provider.")
+                return
+            except Exception as e:
+                print(f"❌ Channels error: {e}")
+                self.show_error_threadsafe(f"Failed to get channels: {str(e)}")
+                return
 
             if not channels_response or channels_response.status_code != 200:
                 self.show_error_threadsafe("Failed to get channels after all attempts")
                 return
 
-            # ✅ ENHANCED: Better response parsing with HTML/web interface support
+            # Parse and update UI
             try:
                 response_text = channels_response.text.strip()
                 print(f"🔍 Response preview: {response_text[:200]}...")
-                
-                # Check if response is empty
+
                 if not response_text:
                     self.show_error_threadsafe("Server returned empty response.\n\nThis provider may require:\n• Different MAC address format\n• Account activation\n• Subscription payment")
                     return
-                
-                # ✅ NEW: Try to parse as JSON first
+
                 if response_text.startswith('{') or response_text.startswith('['):
                     try:
                         response_data = channels_response.json()
-                        
-                        # Handle different JSON structures
                         if isinstance(response_data, dict):
                             data = response_data.get("js", {}).get("data", []) or response_data.get("data", []) or response_data.get("channels", [])
                         elif isinstance(response_data, list):
                             data = response_data
                         else:
                             data = []
-                            
                     except Exception as e:
                         print(f"❌ JSON parsing error: {e}")
                         self.show_error_threadsafe(f"Invalid JSON response from server.\n\nResponse preview:\n{response_text[:300]}...")
                         return
-                
-                # ✅ NEW: Handle M3U format
+
                 elif "#EXTM3U" in response_text:
                     print("🔍 Detected M3U playlist format")
                     channels = self.parse_m3u_playlist(response_text)
@@ -2043,25 +1987,17 @@ class WindowsIPTVPlayer:
                     else:
                         self.show_error_threadsafe("Failed to parse M3U playlist")
                         return
-                
-                # ✅ NEW: Handle HTML/JavaScript response (like your 4k-cdn provider) - PREVENT LOOPS
+
                 elif "<!DOCTYPE" in response_text or "<html" in response_text.lower():
                     print("🔍 Detected HTML/JavaScript response - trying to extract channel data")
-                    
-                    # ✅ SINGLE ATTEMPT - No loops
                     channels = self.parse_html_channel_response(response_text, channels_url)
                     if channels:
                         self.root.after(0, lambda: self._update_channels_ui(channels))
                         return
-                    
-                    # ✅ LIMITED ALTERNATIVE ATTEMPT - No loops  
-                    print("🔍 Trying limited alternative endpoints...")
                     alternative_channels = self.try_alternative_html_endpoints()
                     if alternative_channels:
                         self.root.after(0, lambda: self._update_channels_ui(alternative_channels))
                         return
-                    
-                    # ✅ FINAL MESSAGE - No more attempts
                     self.show_error_threadsafe(
                         "🌐 Web-Based IPTV Interface Detected\n\n"
                         "This provider uses a web-based STB interface that requires:\n"
@@ -2075,58 +2011,50 @@ class WindowsIPTVPlayer:
                         "This type of interface cannot be automated."
                     )
                     return
-                
-                # ✅ XML format
+
                 elif response_text.startswith('<'):
                     print("🔍 Detected XML format (not supported)")
                     self.show_error_threadsafe("Server returned XML format which is not supported.\n\n"
                                             "Please contact the developer with your provider details.")
                     return
-                
-                # Check if it's plain text/HTML error
+
                 elif "error" in response_text.lower():
                     self.show_error_threadsafe(f"Server returned error:\n\n{response_text[:500]}...")
                     return
-                
+
                 else:
-                    # Unknown format - try to extract any useful data
                     self.show_error_threadsafe(f"Unknown response format from server.\n\n"
                                             f"Response type: {type(response_text)}\n"
                                             f"Length: {len(response_text)} chars\n\n"
                                             f"Preview:\n{response_text[:300]}...")
                     return
 
-                # Continue with JSON processing if we got here
                 if not data:
                     self.show_error_threadsafe("No channels found in server response.\n\n"
                                             "Possible issues:\n• Account not activated\n• Subscription expired\n• MAC address not authorized\n• Wrong portal URL")
                     return
 
-                # Process channels (existing code)
                 self.update_progress(f"Processing {len(data)} channels...")
-                
+
                 channels = []
                 from urllib.parse import urlparse
                 parsed_portal = urlparse(self.portal_url)
                 portal_domain = parsed_portal.netloc
-                
+
                 batch_size = 100
                 for i in range(0, len(data), batch_size):
                     if self.cancel_loading:
                         return
-                    
+
                     batch = data[i:i + batch_size]
                     batch_channels = []
-                    
+
                     for ch in batch:
-                        # Handle different channel data structures
                         if isinstance(ch, dict):
                             name = ch.get("name", ch.get("title", "Unknown Channel"))
                             cmd = ch.get("cmd", ch.get("url", ch.get("stream_url", "")))
-                            
                             if cmd:
                                 original_cmd = cmd.replace("ffmpeg ", "").strip()
-                                
                                 if original_cmd.startswith("http://localhost"):
                                     stream_url = original_cmd.replace("http://localhost", f"http://{portal_domain}")
                                 elif original_cmd.startswith("localhost"):
@@ -2137,28 +2065,25 @@ class WindowsIPTVPlayer:
                                     stream_url = original_cmd
                                 else:
                                     stream_url = f"http://{portal_domain}/{original_cmd}"
-                                
                                 batch_channels.append((name, stream_url, original_cmd))
-                    
+
                     channels.extend(batch_channels)
-                    
                     progress = min(100, (len(channels) / len(data)) * 100)
                     self.update_progress(f"Processed {len(channels)}/{len(data)} channels ({progress:.0f}%)")
 
                 if self.cancel_loading:
                     return
-                
+
                 if not channels:
                     self.show_error_threadsafe("No valid channels found in response.\n\nThe server data may be in an unsupported format.")
                     return
-                
-                # Update UI on main thread
+
                 self.root.after(0, lambda: self._update_channels_ui(channels))
-                
+
             except Exception as e:
                 print(f"❌ Channel processing error: {e}")
                 self.show_error_threadsafe(f"Error processing channels: {str(e)}")
-                
+
         except Exception as e:
             self.show_error_threadsafe(f"Error: {str(e)}")
             
@@ -4385,32 +4310,47 @@ class WindowsIPTVPlayer:
         root.mainloop()
 
     def get_stream_link(self, cmd):
-        """Get stream link with proper URL cleaning for 4K-CDN provider"""
-        # Clean the command first - remove any "ffmpeg" prefixes
+        """Get stream link with proper URL cleaning for all providers"""
         clean_cmd = cmd.replace("ffmpeg ", "").strip()
-        
         print(f"🔗 Getting stream link for: {clean_cmd}")
-        
-        # For 4K-CDN, we need to use their portal.php endpoint
+
+        # Extract stream ID from the original command
+        import re
+        stream_id = None
+        match = re.search(r'stream=(\d+)', clean_cmd)
+        if match:
+            stream_id = match.group(1)
+
+        # Build create_link_url as before
         create_link_url = f"{self.portal_url}c/portal.php?type=itv&action=create_link&mac={self.mac_address}&cmd={urllib.parse.quote(clean_cmd)}&JsHttpRequest=1-xml"
-        
         try:
-            # Add timestamp to prevent caching
             import random
             timestamp = int(time.time() * 1000)
             random_val = random.randint(1000, 9999)
             create_link_url += f"&_t={timestamp}&_r={random_val}"
-            
-            # Request with timeout
+
             response = self.requests.get(create_link_url, timeout=5)
             if response.status_code == 200:
                 data = response.json().get('js', {})
                 real_cmd = data.get('cmd', '')
-                if real_cmd and real_cmd != clean_cmd:
-                    # Clean the returned URL properly
+                if real_cmd:
                     final_url = real_cmd.replace("ffmpeg ", "").strip()
-                    
-                    # Fix URL if it has localhost or is relative
+
+                    # Restore stream ID if missing
+                    if stream_id:
+                        final_url = re.sub(r'stream=(?:&)?', f'stream={stream_id}&', final_url)
+                        # If still missing, append it
+                        if f'stream={stream_id}' not in final_url:
+                            if "stream=" in final_url:
+                                final_url = re.sub(r'stream=[^&]*', f'stream={stream_id}', final_url)
+                            else:
+                                # Add stream param before extension
+                                ext_match = re.search(r'extension=\w+', final_url)
+                                if ext_match:
+                                    ext_pos = ext_match.start()
+                                    final_url = final_url[:ext_pos] + f'stream={stream_id}&' + final_url[ext_pos:]
+
+                    # Fix localhost/relative URLs
                     if "localhost" in final_url:
                         from urllib.parse import urlparse
                         parsed_portal = urlparse(self.portal_url)
@@ -4419,7 +4359,7 @@ class WindowsIPTVPlayer:
                         from urllib.parse import urlparse
                         parsed_portal = urlparse(self.portal_url)
                         final_url = f"{parsed_portal.scheme}://{parsed_portal.netloc}{final_url}"
-                    
+
                     print(f"✅ Got clean stream URL: {final_url}")
                     return final_url
                 else:
@@ -4428,7 +4368,7 @@ class WindowsIPTVPlayer:
                 print(f"❌ HTTP {response.status_code}: {response.text[:100]}")
         except Exception as e:
             print(f"❌ Stream link error: {e}")
-        
+
         print("❌ Failed to get stream link")
         return None
     
@@ -5366,9 +5306,21 @@ class WindowsIPTVPlayer:
             # Try to get fresh stream URL
             fresh_stream = self.get_stream_link(original_cmd)
             if fresh_stream:
+                # --- PATCH: Ensure stream ID is present if needed ---
+                import re
+                # Extract stream id from original_cmd
+                match = re.search(r'stream=(\d+)', original_cmd)
+                if match:
+                    stream_id = match.group(1)
+                    # Patch only if stream= is present and empty
+                    fresh_stream = re.sub(r'stream=(&|$)', lambda m: f'stream={stream_id}{m.group(1)}', fresh_stream)
+                    # If stream param is missing, add it before play_token
+                    if "stream=" not in fresh_stream and "play_token=" in fresh_stream:
+                        parts = fresh_stream.split("play_token=")
+                        fresh_stream = f"{parts[0]}stream={stream_id}&play_token={parts[1]}"
                 print(f"🎯 Using fresh stream: {fresh_stream}")
                 clean_stream_url = fresh_stream
-        
+
         try:
             print(f"🎬 Playing: {clean_stream_url}")
             

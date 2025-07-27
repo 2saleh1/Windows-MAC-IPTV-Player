@@ -19,6 +19,8 @@ A simple IPTV player for Windows using Python and Tkinter. Fetch and play IPTV c
 - Search channels
 - Delete users
 - Play streams with ffplay
+- add channels to favorites
+- switching between themes
 
 ---
 

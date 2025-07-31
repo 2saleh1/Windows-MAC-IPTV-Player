@@ -15,12 +15,23 @@ A simple IPTV player for Windows using Python and Tkinter. Fetch and play IPTV c
 
 ## Features
 
-- Save multiple IPTV users
-- Search channels
-- Delete users
-- Play streams with ffplay
-- add channels to favorites
-- switching between themes
+- Save and switch between multiple IPTV users
+- Fast channel search and filtering
+- Add and manage favorite channels
+- Delete users and clear user data
+- Play streams instantly with ffplay (FFmpeg)
+- Export channels to M3U playlist (for VLC and other players)
+- Automatic channel caching for instant loading
+- Batch channel list updates for smooth GUI
+- Supports multiple IPTV portal types (MAG, Xtream, M3U, etc.)
+- Handles token expiry and session refresh automatically
+- Switch between light and dark themes
+- Quick filter buttons for popular channel groups 
+- Show only favorites or all channels
+- Cache management and cleanup tools
+- Detailed error messages and troubleshooting
+- Automatic theme saving and restoring
+- Test server connection tool
 
 ---
 

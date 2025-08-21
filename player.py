@@ -1568,40 +1568,22 @@ class WindowsIPTVPlayer:
         
         
     def on_window_close(self):
-        """Handle window close event properly - ENHANCED"""
+        """Handle window close event properly - OPTIMIZED"""
         print("👤 User closing window...")
         
         # Stop all processes immediately
-        self.cache_cleanup_active = False
-        self.playback_active = False
+        if hasattr(self, 'cache_cleanup_active'):
+            self.cache_cleanup_active = False
         
-        # Clear protection flags
-        if hasattr(self, 'protected_cache_file'):
-            delattr(self, 'protected_cache_file')
+        if hasattr(self, 'playback_active'):
+            self.playback_active = False
         
-        # Stop download process
-        if hasattr(self, 'download_process') and self.download_process and self.download_process.poll() is None:
-            try:
-                self.download_process.terminate()
-                self.download_process.wait(timeout=3)
-                print("📡 Terminated download process")
-            except:
+        # Terminate running processes if any
+        processes_to_check = ['download_process', 'playback_process']
+        for process_name in processes_to_check:
+            if hasattr(self, process_name) and getattr(self, process_name) and getattr(self, process_name).poll() is None:
                 try:
-                    self.download_process.kill()
-                    print("📡 Force killed download process")
-                except:
-                    pass
-        
-        # Stop playback process
-        if hasattr(self, 'playback_process') and self.playback_process and self.playback_process.poll() is None:
-            try:
-                self.playback_process.terminate()
-                self.playback_process.wait(timeout=3)
-                print("🎬 Terminated playback process")
-            except:
-                try:
-                    self.playback_process.kill()
-                    print("🎬 Force killed playback process")
+                    getattr(self, process_name).terminate()
                 except:
                     pass
         
@@ -1611,43 +1593,14 @@ class WindowsIPTVPlayer:
         except:
             pass
         
-        # ✅ ENHANCED: Force cleanup stream cache on exit
-        print("🧹 Cleaning up stream cache on exit...")
-        self.force_cleanup_stream_cache()
-        
-        # Short delay to ensure cleanup completes
-        time.sleep(1)
-        
-        # Destroy window
+        # Destroy window immediately
         self.root.destroy()
         
         
     def force_cleanup_stream_cache(self):
-        """Force cleanup of all stream cache files - PLACEHOLDER"""
-        try:
-            # Since we removed cache methods, this is just a placeholder
-            print("🧹 Stream cache cleanup (placeholder - no cache files to clean)")
+        """Placeholder for stream cache cleanup - does nothing"""
+        pass
             
-            # Clean any temporary files if they exist
-            temp_patterns = ['*.tmp', '*.ts', '*.part']
-            cleaned_count = 0
-            
-            for pattern in temp_patterns:
-                import glob
-                temp_files = glob.glob(os.path.join(CACHE_DIR, pattern))
-                for temp_file in temp_files:
-                    try:
-                        os.remove(temp_file)
-                        cleaned_count += 1
-                    except:
-                        pass
-            
-            if cleaned_count > 0:
-                print(f"🧹 Cleaned {cleaned_count} temporary files")
-            
-        except Exception as e:
-            print(f"Cleanup error: {e}")
-        
         
         
    
@@ -1711,6 +1664,7 @@ class WindowsIPTVPlayer:
 
     def show_loading_progress(self):
         """Show loading progress window"""
+        self.fetch_start_time = time.time()
         self.loading_progress = tb.Toplevel(self.root)
         self.loading_progress.title("Loading Channels...")
         self.loading_progress.geometry("400x150")
@@ -1728,8 +1682,15 @@ class WindowsIPTVPlayer:
                                      command=self.cancel_channel_loading, bg="red", fg="white")
         self.cancel_button.pack(pady=10)
 
-    def update_progress(self, message):
-        """Update progress message from background thread"""
+    def update_progress(self, message, show_time_estimate=True):
+        """Update progress message with time estimation"""
+        if show_time_estimate and hasattr(self, 'fetch_start_time'):
+            elapsed = time.time() - self.fetch_start_time
+            if elapsed > 2:  # Only show estimate after 2 seconds
+                estimated_total = min(30, elapsed * 2)  # Estimate total time
+                remaining = max(0, estimated_total - elapsed)
+                message += f" (Est. {remaining:.0f}s remaining)"
+        
         def update():
             if self.progress_text and self.loading_progress and self.loading_progress.winfo_exists():
                 self.progress_text.config(text=message)
@@ -1744,9 +1705,13 @@ class WindowsIPTVPlayer:
             self.loading_progress = None
 
     def fetch_channels_threaded(self):
-        """Fetch channels using threading for better performance"""
+        """Fetch channels using threading with warmup for better performance"""
         if self.loading_progress:
             return
+        
+        # ✅ PRE-WARM CONNECTION
+        warmup_thread = threading.Thread(target=self.warmup_connection, daemon=True)
+        warmup_thread.start()
         
         self.show_loading_progress()
         
@@ -1755,76 +1720,28 @@ class WindowsIPTVPlayer:
         loading_thread.start()
 
     def _fetch_channels_background(self):
-        """Enhanced background thread for fetching channels with better timeout handling"""
+        """OPTIMIZED background thread for fetching channels - FASTER for new users"""
         try:
-            base_endpoints = [
-                # Standard MAG endpoints
+            # ✅ REDUCED endpoint list - only test most common ones first
+            priority_endpoints = [
+                # Most common MAG endpoints (test these first)
                 {
                     "auth": f"{self.portal_url}server/load.php?type=stb&action=handshake&mac={self.mac_address}",
                     "channels": f"{self.portal_url}server/load.php?type=itv&action=get_all_channels&mac={self.mac_address}&JsHttpRequest=1-xml"
                 },
-                # Alternative endpoint structure
                 {
                     "auth": f"{self.portal_url}stalker_portal/server/load.php?type=stb&action=handshake&mac={self.mac_address}",
                     "channels": f"{self.portal_url}stalker_portal/server/load.php?type=itv&action=get_all_channels&mac={self.mac_address}&JsHttpRequest=1-xml"
                 },
-                # Portal API style
                 {
                     "auth": f"{self.portal_url}portal.php?type=stb&action=handshake&mac={self.mac_address}",
                     "channels": f"{self.portal_url}portal.php?type=itv&action=get_all_channels&mac={self.mac_address}&JsHttpRequest=1-xml"
                 },
-                # Direct API style
-                {
-                    "auth": f"{self.portal_url}api/stb/handshake?mac={self.mac_address}",
-                    "channels": f"{self.portal_url}api/itv/channels?mac={self.mac_address}"
-                },
-                # Simple path style
-                {
-                    "auth": f"{self.portal_url}handshake?mac={self.mac_address}",
-                    "channels": f"{self.portal_url}channels?mac={self.mac_address}"
-                },
-                # CDN-specific endpoints for providers like 4k-cdn
-                {
-                    "auth": f"{self.portal_url}c/",
-                    "channels": f"{self.portal_url}c/?get=channels&mac={self.mac_address}"
-                },
-                {
-                    "auth": f"{self.portal_url}c/",
-                    "channels": f"{self.portal_url}c/?action=get_live_streams&mac={self.mac_address}"
-                },
-                {
-                    "auth": f"{self.portal_url}c/",
-                    "channels": f"{self.portal_url}c/channels.php?mac={self.mac_address}"
-                },
-                {
-                    "auth": f"{self.portal_url}c/",
-                    "channels": f"{self.portal_url}c/api.php?action=channels&mac={self.mac_address}"
-                },
-                {
-                    "auth": f"{self.portal_url}c/",
-                    "channels": f"{self.portal_url}c/index.php?mac={self.mac_address}&action=get_channels"
-                },
-                {
-                    "auth": f"{self.portal_url}c/",
-                    "channels": f"{self.portal_url}c/?mac={self.mac_address}&get=live"
-                },
-                # Xtream Codes API style
-                {
-                    "auth": f"{self.portal_url}player_api.php?username={self.mac_address}&password=&action=get_live_categories",
-                    "channels": f"{self.portal_url}player_api.php?username={self.mac_address}&password=&action=get_live_streams"
-                },
-                # M3U playlist style
-                {
-                    "auth": f"{self.portal_url}get.php?username={self.mac_address}&password=&type=m3u_plus",
-                    "channels": f"{self.portal_url}get.php?username={self.mac_address}&password=&type=m3u_plus"
-                },
-                # Direct m3u without auth
-                {
-                    "auth": f"{self.portal_url}playlist.m3u8?mac={self.mac_address}",
-                    "channels": f"{self.portal_url}playlist.m3u8?mac={self.mac_address}"
-                }
             ]
 
+            # ✅ FASTER timeout - reduced from 10s to 5s
+            fast_timeout = (5, 8)  # 5s connect, 8s read
+            
             headers = {
                 "Referer": self.portal_url + "index.html",
                 "Origin": self.portal_url.rstrip('/'),
@@ -1840,243 +1757,171 @@ class WindowsIPTVPlayer:
             successful_endpoints = None
             auth_response = None
 
-            for endpoint_idx, endpoints in enumerate(base_endpoints):
+            # ✅ TRY PRIORITY ENDPOINTS FIRST with faster timeout
+            for endpoint_idx, endpoints in enumerate(priority_endpoints):
                 if self.cancel_loading:
                     return
 
-                self.update_progress(f"Testing endpoint structure {endpoint_idx + 1}/{len(base_endpoints)}...")
-                print(f"🔍 Testing endpoint structure {endpoint_idx + 1}: {endpoints['auth']}")
+                self.update_progress(f"Testing endpoint {endpoint_idx + 1}/{len(priority_endpoints)}...")
+                print(f"🔍 Testing priority endpoint {endpoint_idx + 1}: {endpoints['auth']}")
 
-                # Special handling for M3U and non-auth endpoints
-                if "playlist.m3u8" in endpoints['auth'] or "get.php" in endpoints['auth']:
-                    try:
-                        self.update_progress(f"Testing direct playlist access...")
-                        response = self.requests.session.get(endpoints["channels"], timeout=(10, 20))
-                        if response.status_code == 200:
-                            print(f"✅ Direct playlist access successful")
-                            m3u_content = response.text
-                            if "#EXTM3U" in m3u_content:
-                                channels = self.parse_m3u_playlist(m3u_content)
-                                if channels:
-                                    self.root.after(0, lambda: self._update_channels_ui(channels))
-                                    return
-                    except Exception as e:
-                        print(f"❌ Direct playlist failed: {e}")
-                        continue
+                try:
+                    self.update_progress(f"Quick auth test ({fast_timeout[0]}s)...")
+                    auth_response = self.requests.session.get(endpoints["auth"], timeout=fast_timeout)
+                    
+                    if auth_response.status_code == 200:
+                        print(f"✅ FAST authentication successful with endpoint {endpoint_idx + 1}")
+                        successful_endpoints = endpoints
+                        break  # SUCCESS - stop trying other endpoints
+                    else:
+                        print(f"❌ Auth failed with status {auth_response.status_code}")
+                        
+                except requests.exceptions.ConnectTimeout:
+                    print(f"⏰ Fast connect timeout ({fast_timeout[0]}s)")
+                    continue
+                except requests.exceptions.ReadTimeout:
+                    print(f"⏰ Fast read timeout ({fast_timeout[1]}s)")
+                    continue
+                except Exception as e:
+                    print(f"❌ Fast auth error: {e}")
+                    continue
 
-                elif "player_api.php" in endpoints['auth']:
-                    try:
-                        self.update_progress(f"Testing Xtream Codes API...")
-                        response = self.requests.session.get(endpoints["channels"], timeout=(10, 20))
-                        if response.status_code == 200:
-                            try:
+            # ✅ IF PRIORITY ENDPOINTS FAIL, try extended list with longer timeout
+            if not successful_endpoints:
+                print("🔍 Priority endpoints failed, trying extended list...")
+                
+                extended_endpoints = [
+                    # Add your remaining endpoints here with longer timeout
+                    {
+                        "auth": f"{self.portal_url}c/",
+                        "channels": f"{self.portal_url}c/?get=channels&mac={self.mac_address}"
+                    },
+                    # Xtream Codes API style  
+                    {
+                        "auth": f"{self.portal_url}player_api.php?username={self.mac_address}&password=&action=get_live_categories",
+                        "channels": f"{self.portal_url}player_api.php?username={self.mac_address}&password=&action=get_live_streams"
+                    },
+                ]
+                
+                extended_timeout = (8, 12)  # Slightly longer for fallback
+                
+                for endpoint_idx, endpoints in enumerate(extended_endpoints):
+                    if self.cancel_loading:
+                        return
+                    
+                    self.update_progress(f"Extended test {endpoint_idx + 1}...")
+                    
+                    # Handle special endpoint types
+                    if "player_api.php" in endpoints['auth']:
+                        try:
+                            response = self.requests.session.get(endpoints["channels"], timeout=extended_timeout)
+                            if response.status_code == 200:
                                 data = response.json()
                                 if isinstance(data, list) and len(data) > 0:
-                                    print(f"✅ Xtream Codes API successful")
                                     channels = self.parse_xtream_channels(data)
                                     if channels:
                                         self.root.after(0, lambda: self._update_channels_ui(channels))
                                         return
-                            except:
-                                pass
+                        except Exception as e:
+                            print(f"❌ Xtream API failed: {e}")
+                            continue
+                    
+                    # Regular auth test
+                    try:
+                        auth_response = self.requests.session.get(endpoints["auth"], timeout=extended_timeout)
+                        if auth_response.status_code == 200:
+                            successful_endpoints = endpoints
+                            break
                     except Exception as e:
-                        print(f"❌ Xtream API failed: {e}")
                         continue
 
-                # Try authentication with this endpoint structure (only one attempt)
-                try:
-                    connect_timeout, read_timeout = 10, 20
-                    self.update_progress(f"Auth attempt with timeout: {connect_timeout}s connect, {read_timeout}s read")
-                    print(f"🔐 Auth attempt with timeout: {connect_timeout}s connect, {read_timeout}s read")
-                    auth_response = self.requests.session.get(endpoints["auth"], timeout=(connect_timeout, read_timeout))
-                    if auth_response.status_code == 200:
-                        print(f"✅ Authentication successful with endpoint structure {endpoint_idx + 1}")
-                        successful_endpoints = endpoints
-                        break  # Stop trying other endpoint structures
-                    else:
-                        print(f"❌ Auth failed with status {auth_response.status_code}")
-                except requests.exceptions.ConnectTimeout:
-                    print(f"⏰ Connect timeout ({connect_timeout}s)")
-                except requests.exceptions.ReadTimeout:
-                    print(f"⏰ Read timeout ({read_timeout}s)")
-                except Exception as e:
-                    print(f"❌ Auth error: {e}")
-
-            if not successful_endpoints or not auth_response or auth_response.status_code != 200:
-                self.show_error_threadsafe("Authentication failed with all endpoint structures.\n\n"
-                                        "This provider may use a custom API format not supported yet.\n"
-                                        "Please contact the developer with your provider details.")
+            if not successful_endpoints:
+                self.show_error_threadsafe("Authentication failed with all endpoints.\n\n"
+                                        "This may be due to:\n• Server being offline\n• Incorrect MAC address\n• Network connectivity issues")
                 return
 
             if self.cancel_loading:
                 return
 
-            # Extract token if present
+            # ✅ EXTRACT TOKEN QUICKLY
             try:
-                if auth_response.text.strip():
-                    auth_data = auth_response.json()
-                    token = auth_data.get('js', {}).get('token', '') or auth_data.get('token', '')
-                else:
-                    print("⚠️ Non-JSON auth response, proceeding without token")
-                    token = ''
+                auth_data = auth_response.json()
+                token = auth_data.get('js', {}).get('token', '') or auth_data.get('token', '')
             except:
-                print("⚠️ Non-JSON auth response, proceeding without token")
                 token = ''
 
-            # Build channels URL with token if we have one
+            # ✅ BUILD CHANNELS URL
             channels_url = successful_endpoints["channels"]
             if token:
                 separator = "&" if "?" in channels_url else "?"
                 channels_url += f"{separator}token={token}"
 
-            self.update_progress("Fetching channel list...")
+            self.update_progress("Fetching channels...")
             print(f"📺 Using channels URL: {channels_url}")
 
-            # Fetch channels (only one attempt)
+            # ✅ FETCH CHANNELS with optimized timeout
             try:
-                connect_timeout, read_timeout = 10, 20
-                self.update_progress(f"Channels attempt with timeout: {connect_timeout}s connect, {read_timeout}s read")
-                print(f"📺 Channels attempt with timeout: {connect_timeout}s connect, {read_timeout}s read")
-                channels_response = self.requests.session.get(channels_url, timeout=(connect_timeout, read_timeout))
-            except requests.exceptions.ConnectTimeout:
-                print(f"⏰ Connect timeout ({connect_timeout}s) on channels")
-                self.show_error_threadsafe("Server is too slow to respond.\nTry again later or use a VPN.")
-                return
-            except requests.exceptions.ReadTimeout:
-                print(f"⏰ Read timeout ({read_timeout}s) on channels")
-                self.show_error_threadsafe("Server response is too slow.\nTry again later or contact provider.")
-                return
+                channels_response = self.requests.session.get(channels_url, timeout=(5, 15))  # 5s connect, 15s read
             except Exception as e:
                 print(f"❌ Channels error: {e}")
                 self.show_error_threadsafe(f"Failed to get channels: {str(e)}")
                 return
 
             if not channels_response or channels_response.status_code != 200:
-                self.show_error_threadsafe("Failed to get channels after all attempts")
+                self.show_error_threadsafe("Failed to get channels")
                 return
 
-            # Parse and update UI
+            # ✅ PROCESS RESPONSE QUICKLY
             try:
                 response_text = channels_response.text.strip()
                 print(f"🔍 Response preview: {response_text[:200]}...")
 
-                if not response_text:
-                    self.show_error_threadsafe("Server returned empty response.\n\nThis provider may require:\n• Different MAC address format\n• Account activation\n• Subscription payment")
-                    return
-
                 if response_text.startswith('{') or response_text.startswith('['):
-                    try:
-                        response_data = channels_response.json()
-                        if isinstance(response_data, dict):
-                            data = response_data.get("js", {}).get("data", []) or response_data.get("data", []) or response_data.get("channels", [])
-                        elif isinstance(response_data, list):
-                            data = response_data
-                        else:
-                            data = []
-                    except Exception as e:
-                        print(f"❌ JSON parsing error: {e}")
-                        self.show_error_threadsafe(f"Invalid JSON response from server.\n\nResponse preview:\n{response_text[:300]}...")
-                        return
-
-                elif "#EXTM3U" in response_text:
-                    print("🔍 Detected M3U playlist format")
-                    channels = self.parse_m3u_playlist(response_text)
-                    if channels:
-                        self.root.after(0, lambda: self._update_channels_ui(channels))
-                        return
+                    response_data = channels_response.json()
+                    if isinstance(response_data, dict):
+                        data = response_data.get("js", {}).get("data", []) or response_data.get("data", [])
+                    elif isinstance(response_data, list):
+                        data = response_data
                     else:
-                        self.show_error_threadsafe("Failed to parse M3U playlist")
-                        return
-
-                elif "<!DOCTYPE" in response_text or "<html" in response_text.lower():
-                    print("🔍 Detected HTML/JavaScript response - trying to extract channel data")
-                    channels = self.parse_html_channel_response(response_text, channels_url)
-                    if channels:
-                        self.root.after(0, lambda: self._update_channels_ui(channels))
-                        return
-                    alternative_channels = self.try_alternative_html_endpoints()
-                    if alternative_channels:
-                        self.root.after(0, lambda: self._update_channels_ui(alternative_channels))
-                        return
-                    self.show_error_threadsafe(
-                        "🌐 Web-Based IPTV Interface Detected\n\n"
-                        "This provider uses a web-based STB interface that requires:\n"
-                        "• JavaScript execution in a web browser\n"
-                        "• Interactive session management\n"
-                        "• Dynamic channel loading\n\n"
-                        "Solutions:\n"
-                        "• Ask your provider for M3U playlist URL\n"
-                        "• Use a web browser to access channels\n"
-                        "• Contact provider for API documentation\n\n"
-                        "This type of interface cannot be automated."
-                    )
-                    return
-
-                elif response_text.startswith('<'):
-                    print("🔍 Detected XML format (not supported)")
-                    self.show_error_threadsafe("Server returned XML format which is not supported.\n\n"
-                                            "Please contact the developer with your provider details.")
-                    return
-
-                elif "error" in response_text.lower():
-                    self.show_error_threadsafe(f"Server returned error:\n\n{response_text[:500]}...")
-                    return
-
+                        data = []
                 else:
-                    self.show_error_threadsafe(f"Unknown response format from server.\n\n"
-                                            f"Response type: {type(response_text)}\n"
-                                            f"Length: {len(response_text)} chars\n\n"
-                                            f"Preview:\n{response_text[:300]}...")
+                    self.show_error_threadsafe("Unexpected response format from server")
                     return
 
                 if not data:
-                    self.show_error_threadsafe("No channels found in server response.\n\n"
-                                            "Possible issues:\n• Account not activated\n• Subscription expired\n• MAC address not authorized\n• Wrong portal URL")
+                    self.show_error_threadsafe("No channels found in server response")
                     return
 
                 self.update_progress(f"Processing {len(data)} channels...")
 
+                # ✅ OPTIMIZED CHANNEL PROCESSING - process in larger batches
                 channels = []
                 from urllib.parse import urlparse
                 parsed_portal = urlparse(self.portal_url)
                 portal_domain = parsed_portal.netloc
 
-                batch_size = 100
-                for i in range(0, len(data), batch_size):
+                # Process all at once instead of batches for speed
+                for ch in data:
                     if self.cancel_loading:
                         return
-
-                    batch = data[i:i + batch_size]
-                    batch_channels = []
-
-                    for ch in batch:
-                        if isinstance(ch, dict):
-                            name = ch.get("name", ch.get("title", "Unknown Channel"))
-                            cmd = ch.get("cmd", ch.get("url", ch.get("stream_url", "")))
-                            if cmd:
-                                original_cmd = cmd.replace("ffmpeg ", "").strip()
-                                if original_cmd.startswith("http://localhost"):
-                                    stream_url = original_cmd.replace("http://localhost", f"http://{portal_domain}")
-                                elif original_cmd.startswith("localhost"):
-                                    stream_url = f"http://{portal_domain}" + original_cmd[9:]
-                                elif original_cmd.startswith("/"):
-                                    stream_url = f"http://{portal_domain}{original_cmd}"
-                                elif original_cmd.startswith("http://") or original_cmd.startswith("https://"):
-                                    stream_url = original_cmd
-                                else:
-                                    stream_url = f"http://{portal_domain}/{original_cmd}"
-                                batch_channels.append((name, stream_url, original_cmd))
-
-                    channels.extend(batch_channels)
-                    progress = min(100, (len(channels) / len(data)) * 100)
-                    self.update_progress(f"Processed {len(channels)}/{len(data)} channels ({progress:.0f}%)")
-
-                if self.cancel_loading:
-                    return
-
-                if not channels:
-                    self.show_error_threadsafe("No valid channels found in response.\n\nThe server data may be in an unsupported format.")
-                    return
+                    
+                    if isinstance(ch, dict):
+                        name = ch.get("name", ch.get("title", "Unknown Channel"))
+                        cmd = ch.get("cmd", ch.get("url", ""))
+                        if cmd:
+                            original_cmd = cmd.replace("ffmpeg ", "").strip()
+                            
+                            # Build URL efficiently
+                            if original_cmd.startswith("http://localhost"):
+                                stream_url = original_cmd.replace("http://localhost", f"http://{portal_domain}")
+                            elif original_cmd.startswith("/"):
+                                stream_url = f"http://{portal_domain}{original_cmd}"
+                            elif original_cmd.startswith(("http://", "https://")):
+                                stream_url = original_cmd
+                            else:
+                                stream_url = f"http://{portal_domain}/{original_cmd}"
+                            
+                            channels.append((name, stream_url, original_cmd))
 
                 self.root.after(0, lambda: self._update_channels_ui(channels))
 
@@ -2086,6 +1931,68 @@ class WindowsIPTVPlayer:
 
         except Exception as e:
             self.show_error_threadsafe(f"Error: {str(e)}")
+            
+            
+    def detect_provider_type(self, portal_url):
+        """Detect provider type from URL to prioritize endpoints"""
+        url_lower = portal_url.lower()
+        
+        if "stalker" in url_lower:
+            return "stalker"
+        elif any(keyword in url_lower for keyword in ["xtream", "api", "panel"]):
+            return "xtream"
+        elif url_lower.endswith("/c/"):
+            return "cdn"
+        else:
+            return "standard"
+
+    def get_prioritized_endpoints(self):
+        """Get endpoints in priority order based on provider type"""
+        provider_type = self.detect_provider_type(self.portal_url)
+        
+        if provider_type == "stalker":
+            return [
+                {
+                    "auth": f"{self.portal_url}stalker_portal/server/load.php?type=stb&action=handshake&mac={self.mac_address}",
+                    "channels": f"{self.portal_url}stalker_portal/server/load.php?type=itv&action=get_all_channels&mac={self.mac_address}&JsHttpRequest=1-xml"
+                },
+                {
+                    "auth": f"{self.portal_url}server/load.php?type=stb&action=handshake&mac={self.mac_address}",
+                    "channels": f"{self.portal_url}server/load.php?type=itv&action=get_all_channels&mac={self.mac_address}&JsHttpRequest=1-xml"
+                }
+            ]
+        elif provider_type == "xtream":
+            return [
+                {
+                    "auth": f"{self.portal_url}player_api.php?username={self.mac_address}&password=&action=get_live_categories",
+                    "channels": f"{self.portal_url}player_api.php?username={self.mac_address}&password=&action=get_live_streams"
+                }
+            ]
+        elif provider_type == "cdn":
+            return [
+                {
+                    "auth": f"{self.portal_url}",
+                    "channels": f"{self.portal_url}?get=channels&mac={self.mac_address}"
+                }
+            ]
+        else:
+            return [
+                {
+                    "auth": f"{self.portal_url}server/load.php?type=stb&action=handshake&mac={self.mac_address}",
+                    "channels": f"{self.portal_url}server/load.php?type=itv&action=get_all_channels&mac={self.mac_address}&JsHttpRequest=1-xml"
+                }
+            ]
+            
+            
+    def warmup_connection(self):
+        """Pre-warm connection to reduce first request latency"""
+        try:
+            # Quick HEAD request to warm up DNS and TCP connection
+            warmup_url = self.portal_url.rstrip('/')
+            self.requests.session.head(warmup_url, timeout=3)
+            print("🔥 Connection warmed up")
+        except:
+            pass  # Ignore warmup failures
             
             
             
@@ -5293,7 +5200,7 @@ class WindowsIPTVPlayer:
         user_agent = "Mozilla/5.0 (QtEmbedded; U; Linux; C)"
         referer = self.portal_url + "index.html"
         
-        print("🚀 Enhanced direct playback for 4K-CDN...")
+        print("🚀 Enhanced direct playback...")
         
         # Clean the stream URL first
         clean_stream_url = stream_url.replace("ffmpeg ", "").strip()

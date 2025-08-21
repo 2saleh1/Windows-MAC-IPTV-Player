@@ -33,6 +33,7 @@ A simple IPTV player for Windows using Python and Tkinter. Fetch and play IPTV c
 - Automatic theme saving and restoring
 - Test server connection tool
 
+
 ---
 
 ## Requirements

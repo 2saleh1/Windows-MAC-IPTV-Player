@@ -190,11 +190,12 @@ class OptimizedRequests:
         self.session.mount("https://", adapter)
         
         # Set default headers (applied to all requests)
+        # ✅ UPDATED: Use Browser UA and Connection: close to avoid 10054 errors
         self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C)",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
             "Accept": "*/*",
             "Cache-Control": "no-cache",
-            "Connection": "keep-alive"  # Explicitly request connection reuse
+            "Connection": "close"  # Explicitly close to avoid stale connection resets
         })
     
     def get(self, url, **kwargs):
@@ -336,9 +337,9 @@ class M3UExportWindow:
                                    width=25, height=2)
         self.all_button.pack(pady=10)
         
-        # Button 2: SSC and BEIN
-        self.sports_button = tk.Button(main_frame, text="SSC and BEIN", 
-                                      command=self.export_ssc_bein,
+        # Button 2: thm and BEIN
+        self.sports_button = tk.Button(main_frame, text="thm and BEIN", 
+                                      command=self.export_thm_bein,
                                       bg="#4CAF50", fg="white", font=("Arial", 12, "bold"),
                                       width=25, height=2)
         self.sports_button.pack(pady=10)
@@ -369,21 +370,21 @@ class M3UExportWindow:
         channels_for_export = [(ch[0], ch[1]) for ch in self.channels]
         self.export_to_m3u(channels_for_export, "all", use_real_urls=False)
     
-    def export_ssc_bein(self):
-        """Export SSC and BEIN channels to M3U file"""
+    def export_thm_bein(self):
+        """Export thm and BEIN channels to M3U file"""
         filtered_channels = []
         for channel_data in self.channels:
             name = channel_data[0]
             url = channel_data[1]
             name_lower = name.lower()
-            if 'ssc' in name_lower or 'bein' in name_lower:
+            if 'thm' in name_lower or 'bein' in name_lower:
                 filtered_channels.append((name, url))
         
         if not filtered_channels:
-            messagebox.showwarning("Warning", "No SSC or BEIN channels found.")
+            messagebox.showwarning("Warning", "No thm or BEIN channels found.")
             return
         
-        self.export_to_m3u(filtered_channels, "ssc_bein", use_real_urls=False)
+        self.export_to_m3u(filtered_channels, "thm_bein", use_real_urls=False)
     
     def export_custom(self):
         """Export channels based on custom user input"""
@@ -562,7 +563,7 @@ class IPTVUserSelection:
     def __init__(self, root: tk.Tk):
         self.root = root 
         self.root.title("Select IPTV User - Created by Saleh (github.com/2saleh1)")
-        self.root.geometry("400x250")
+        self.root.geometry("400x320") # Increased height for buttons
         
         footer = tk.Label(root, text="Created by Saleh  |  github.com/2saleh1", fg="gray", font=("Arial", 8))
         footer.pack(side=tk.BOTTOM, pady=2)
@@ -585,31 +586,56 @@ class IPTVUserSelection:
 
         # --- User selection ---
         user_frame = tk.Frame(root)
-        user_frame.pack(pady=(0, 10))
+        user_frame.pack(pady=(0, 5))
         tk.Label(user_frame, text="Select User:").pack(side=tk.LEFT, padx=(0, 8))
         self.selected_user = StringVar(root)
-        user_keys = list(self.credentials.keys())
+        
+        self.user_keys = list(self.credentials.keys())
 
-        if not user_keys:
+        if not self.user_keys:
             messagebox.showinfo("No Users Found", "No IPTV users found. Please create a new user.")
             self.root.destroy()
             NewUserWindow()
             return
 
-        default_user = user_keys[0]
+        default_user = self.user_keys[0]
         self.selected_user.set(default_user)
-        self.user_menu = OptionMenu(user_frame, self.selected_user, *user_keys)
+        
+        self.user_menu = OptionMenu(user_frame, self.selected_user, *self.user_keys)
         self.user_menu.pack(side=tk.LEFT)
 
+        # --- Manual Status Marking Buttons ---
+        status_frame = tk.Frame(root)
+        status_frame.pack(pady=(0, 10))
+        
+        self.btn_mark_green = tk.Button(status_frame, text="✅ Working", fg="#00C853", 
+                                      command=lambda: self.mark_current_user("green"),
+                                      font=("Arial", 8, "bold"), width=10)
+        self.btn_mark_green.pack(side=tk.LEFT, padx=2)
+        
+        self.btn_mark_red = tk.Button(status_frame, text="❌ Dead", fg="#D50000", 
+                                    command=lambda: self.mark_current_user("red"),
+                                    font=("Arial", 8, "bold"), width=10)
+        self.btn_mark_red.pack(side=tk.LEFT, padx=2)
+        
+        self.btn_mark_clear = tk.Button(status_frame, text="⚪ Reset", 
+                                      command=lambda: self.mark_current_user(None),
+                                      font=("Arial", 8), width=8)
+        self.btn_mark_clear.pack(side=tk.LEFT, padx=2)
+
         # --- Buttons ---
-        self.start_button = tk.Button(root, text="Start", command=self.start_player)
-        self.start_button.pack(pady=(5, 0))
+        self.start_button = tk.Button(root, text="Start Player", command=self.start_player, 
+                                    width=25, bg="#2196F3", fg="white", font=("Arial", 10, "bold"))
+        self.start_button.pack(pady=(5, 5))
 
-        self.new_button = tk.Button(root, text="New", command=self.open_new_user_window)
-        self.new_button.pack()
+        self.new_button = tk.Button(root, text="Add New User", command=self.open_new_user_window, width=25)
+        self.new_button.pack(pady=2)
 
-        self.delete_button = tk.Button(root, text="Delete User", command=self.delete_user, fg="red")
-        self.delete_button.pack()
+        self.delete_button = tk.Button(root, text="Delete User", command=self.delete_user, fg="red", width=25)
+        self.delete_button.pack(pady=2)
+
+        # Apply saved colors
+        self.update_user_menu_colors()
 
         # If no users exist, prompt the user to create one
         if not self.credentials:
@@ -617,13 +643,56 @@ class IPTVUserSelection:
             self.root.destroy()
             NewUserWindow()
             return
+            
+    def mark_current_user(self, color):
+        """Manually mark the current user with a color status"""
+        username = self.selected_user.get()
+        if not username or username not in self.credentials:
+            return
+            
+        # Update data
+        if color:
+            self.credentials[username]["color"] = color
+        else:
+            if "color" in self.credentials[username]:
+                del self.credentials[username]["color"]
         
-        
-        
-        
-        
-    
-        
+        # Save to file
+        file_path = os.path.join(CREDENTIALS_DIR, f"{username}.json")
+        try:
+            with open(file_path, "w") as f:
+                json.dump(self.credentials[username], f)
+            
+            # Update UI
+            self.update_user_menu_colors()
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save status: {e}")
+
+    def update_user_menu_colors(self):
+        """Update the colors of the dropdown menu items based on saved status"""
+        try:
+            menu = self.user_menu["menu"]
+            for index, user in enumerate(self.user_keys):
+                user_data = self.credentials.get(user, {})
+                color = user_data.get("color")
+                
+                fg_color = ""
+                if color == "green": 
+                    fg_color = "#00C853" # Strong Green
+                elif color == "red": 
+                    fg_color = "#D50000" # Strong Red
+                
+                if fg_color:
+                    menu.entryconfig(index, foreground=fg_color)
+                else:
+                    try:
+                        menu.entryconfig(index, foreground="") 
+                    except:
+                        pass
+        except Exception as e:
+            print(f"Error updating menu colors: {e}")
+
     def on_theme_change(self, selected_theme):
         save_theme(selected_theme)
         self.root.destroy()
@@ -635,15 +704,9 @@ class IPTVUserSelection:
             os.execl(sys.executable, sys.executable, script, *sys.argv[1:])
         else:
             root = tb.Window(themename=selected_theme)
-            center_window(root, 400, 250)
+            center_window(root, 400, 320)
             IPTVUserSelection(root)
             root.mainloop()
-            
-    
-
-            
-    
-
 
     def load_credentials(self):
         """Load all saved user profiles from the credentials directory."""
@@ -652,31 +715,33 @@ class IPTVUserSelection:
             # Only load files that end with .json and do NOT contain '_favorites'
             if filename.endswith(".json") and "_favorites" not in filename:
                 with open(os.path.join(CREDENTIALS_DIR, filename), "r") as f:
-                    data = json.load(f)
-                    users[filename.replace(".json", "")] = data
+                    try:
+                        data = json.load(f)
+                        users[filename.replace(".json", "")] = data
+                    except:
+                        pass
         return users
-    
     
     def update_user_menu(self):
         """Refresh the dropdown menu after adding or deleting users."""
         self.credentials = self.load_credentials()
-        user_keys = list(self.credentials.keys())
-        default_user = user_keys[0] if user_keys else ""
+        self.user_keys = list(self.credentials.keys())
+        default_user = self.user_keys[0] if self.user_keys else ""
 
         # Clear and repopulate the OptionMenu
         menu = self.user_menu["menu"]
         menu.delete(0, "end")
-        for user in user_keys:
+        for user in self.user_keys:
             menu.add_command(label=user, command=lambda value=user: self.selected_user.set(value))
 
         # Set the selected user to the first one if available
-        if user_keys:
+        if self.user_keys:
             self.selected_user.set(default_user)
+            self.update_user_menu_colors()
         else:
             messagebox.showinfo("No Users Found", "No IPTV users left. Please create a new user.")
             self.root.destroy()
             NewUserWindow()
-            
 
     def start_player(self):
         """Start the IPTV Player with the selected user."""
@@ -1362,10 +1427,10 @@ class WindowsIPTVPlayer:
         filter_buttons_frame = tk.Frame(search_frame)
         filter_buttons_frame.pack(pady=3)
 
-        self.ssc_button = tk.Button(filter_buttons_frame, text="SSC", 
-                                command=lambda: self.set_search("ssc"),
+        self.thm_button = tk.Button(filter_buttons_frame, text="thm", 
+                                command=lambda: self.set_search("thm"),
                                 bg="#FF5722", fg="white", font=("Arial", 9), width=8)
-        self.ssc_button.pack(side=tk.LEFT, padx=3)
+        self.thm_button.pack(side=tk.LEFT, padx=3)
 
         self.bein_button = tk.Button(filter_buttons_frame, text="BEIN", 
                                     command=lambda: self.set_search("bein"),
@@ -1567,9 +1632,19 @@ class WindowsIPTVPlayer:
        
         
         
+    # ...existing code around line 260...
+
     def on_window_close(self):
         """Handle window close event properly - OPTIMIZED"""
         print("👤 User closing window...")
+        
+        # ✅ NEW: Stop theme event processing
+        try:
+            if hasattr(self, 'root') and self.root:
+                # Disable all event callbacks before destroying
+                self.root.unbind_all("<<ThemeChanged>>")
+        except:
+            pass
         
         # Stop all processes immediately
         if hasattr(self, 'cache_cleanup_active'):
@@ -1593,8 +1668,18 @@ class WindowsIPTVPlayer:
         except:
             pass
         
-        # Destroy window immediately
-        self.root.destroy()
+        # ✅ NEW: Proper cleanup sequence
+        try:
+            # Withdraw window first (hide it)
+            self.root.withdraw()
+            # Small delay to let pending events clear
+            self.root.after(10, lambda: self.root.destroy() if self.root else None)
+        except:
+            # Fallback: force destroy
+            try:
+                self.root.destroy()
+            except:
+                pass
         
         
     def force_cleanup_stream_cache(self):
@@ -1859,16 +1944,50 @@ class WindowsIPTVPlayer:
             self.update_progress("Fetching channels...")
             print(f"📺 Using channels URL: {channels_url}")
 
-            # ✅ FETCH CHANNELS with optimized timeout
-            try:
-                channels_response = self.requests.session.get(channels_url, timeout=(5, 15))  # 5s connect, 15s read
-            except Exception as e:
-                print(f"❌ Channels error: {e}")
-                self.show_error_threadsafe(f"Failed to get channels: {str(e)}")
-                return
+            # ✅ FETCH CHANNELS with Robust Retry Logic for 10054 Errors
+            channels_response = None
+            last_error = None
+            
+            # Define retry strategies
+            fetch_strategies = [
+                # Strategy 1: Standard keep-alive
+                {"headers": {}, "timeout": (5, 15)},
+                # Strategy 2: Force close connection (fixes 10054 errors)
+                {"headers": {"Connection": "close"}, "timeout": (10, 30)},
+                # Strategy 3: Browser User-Agent + Close
+                {"headers": {
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                    "Connection": "close"
+                }, "timeout": (10, 30)}
+            ]
+
+            for i, strategy in enumerate(fetch_strategies):
+                try:
+                    if self.cancel_loading: return
+                    
+                    if i > 0:
+                        self.update_progress(f"Retrying fetch (Strategy {i+1})...")
+                        print(f"🔄 Retry strategy {i+1}: {strategy['headers']}")
+                        # Update headers for this attempt
+                        self.requests.session.headers.update(strategy["headers"])
+                    
+                    channels_response = self.requests.session.get(channels_url, timeout=strategy['timeout'])
+                    
+                    if channels_response.status_code == 200:
+                        print(f"✅ Channels fetched successfully using strategy {i+1}")
+                        break
+                    else:
+                        print(f"❌ Strategy {i+1} failed with status {channels_response.status_code}")
+                        
+                except Exception as e:
+                    print(f"❌ Strategy {i+1} error: {e}")
+                    last_error = e
+                    time.sleep(1) # Short wait before retry
+                    continue
 
             if not channels_response or channels_response.status_code != 200:
-                self.show_error_threadsafe("Failed to get channels")
+                error_msg = str(last_error) if last_error else "Unknown error"
+                self.show_error_threadsafe(f"Failed to get channels after retries.\nLast error: {error_msg}")
                 return
 
             # ✅ PROCESS RESPONSE QUICKLY
@@ -1879,13 +1998,43 @@ class WindowsIPTVPlayer:
                 if response_text.startswith('{') or response_text.startswith('['):
                     response_data = channels_response.json()
                     if isinstance(response_data, dict):
-                        data = response_data.get("js", {}).get("data", []) or response_data.get("data", [])
+                        # ✅ FIXED: Handle both list and dict formats for 'js'
+                        js_section = response_data.get("js")
+                        if isinstance(js_section, list):
+                            # Format: {"js": [...channels...]}
+                            data = js_section
+                        elif isinstance(js_section, dict):
+                            # Format: {"js": {"data": [...channels...]}}
+                            data = js_section.get("data", [])
+                        else:
+                            # Format: {"data": [...channels...]} or flat dict
+                            data = response_data.get("data", [])
                     elif isinstance(response_data, list):
                         data = response_data
                     else:
                         data = []
                 else:
                     self.show_error_threadsafe("Unexpected response format from server")
+                    return
+
+                # ✅ NEW: Run diagnosis if empty
+                if not data or len(data) == 0:
+                    diagnosis = self.diagnose_server_response(response_text, self.portal_url, self.mac_address)
+                    
+                    error_message = (
+                        f"❌ Empty Channel List\n\n"
+                        f"Server: {self.portal_url}\n"
+                        f"MAC: {self.mac_address}\n\n"
+                        f"Response Status: {'Valid JSON' if diagnosis['response_valid'] else 'Invalid'}\n"
+                        f"Likely Cause: {diagnosis['likely_cause']}\n\n"
+                        f"What to do:\n"
+                        f"• Contact your provider to verify subscription\n"
+                        f"• Check if MAC address needs activation\n"
+                        f"• Ask for correct portal URL\n"
+                        f"• Request channel list manually from provider"
+                    )
+                    
+                    self.show_error_threadsafe(error_message)
                     return
 
                 if not data:
@@ -1931,12 +2080,18 @@ class WindowsIPTVPlayer:
 
         except Exception as e:
             self.show_error_threadsafe(f"Error: {str(e)}")
+
+
             
             
     def detect_provider_type(self, portal_url):
         """Detect provider type from URL to prioritize endpoints"""
         url_lower = portal_url.lower()
-        
+
+        # Check for delta8k specifically first
+        if "delta8k" in url_lower:
+            print("🔍 Detected Delta8k provider - using direct URLs")
+            return "delta8k"
         if "stalker" in url_lower:
             return "stalker"
         elif any(keyword in url_lower for keyword in ["xtream", "api", "panel"]):
@@ -4217,10 +4372,19 @@ class WindowsIPTVPlayer:
         root.mainloop()
 
     def get_stream_link(self, cmd):
-        """Get stream link with proper URL cleaning for all providers"""
+        """Get stream link with provider-specific handling"""
         clean_cmd = cmd.replace("ffmpeg ", "").strip()
         print(f"🔗 Getting stream link for: {clean_cmd}")
-
+        
+        # Check if this is delta8k provider
+        provider_type = self.detect_provider_type(self.portal_url)
+        
+        if provider_type == "delta8k":
+            # For delta8k, URLs are already playable - return as is
+            print(f"✅ Delta8k provider - using direct URL: {clean_cmd}")
+            return clean_cmd
+        
+        # For other providers, use the create_link endpoint
         # Extract stream ID from the original command
         import re
         stream_id = None
@@ -4229,16 +4393,39 @@ class WindowsIPTVPlayer:
             stream_id = match.group(1)
 
         # Build create_link_url as before
-        create_link_url = f"{self.portal_url}c/portal.php?type=itv&action=create_link&mac={self.mac_address}&cmd={urllib.parse.quote(clean_cmd)}&JsHttpRequest=1-xml"
+        create_link_url = f"{self.portal_url}server/load.php?type=itv&action=create_link&mac={self.mac_address}&cmd={urllib.parse.quote(clean_cmd)}&JsHttpRequest=1-xml"
+        
+        # Helper to fix URLs
+        def fix_url(url_to_fix):
+            if "localhost" in url_to_fix:
+                from urllib.parse import urlparse
+                parsed_portal = urlparse(self.portal_url)
+                return url_to_fix.replace("localhost", parsed_portal.netloc)
+            elif url_to_fix.startswith("/"):
+                from urllib.parse import urlparse
+                parsed_portal = urlparse(self.portal_url)
+                return f"{parsed_portal.scheme}://{parsed_portal.netloc}{url_to_fix}"
+            return url_to_fix
+
         try:
             import random
             timestamp = int(time.time() * 1000)
             random_val = random.randint(1000, 9999)
             create_link_url += f"&_t={timestamp}&_r={random_val}"
 
-            response = self.requests.get(create_link_url, timeout=5)
+            # Use specific headers to avoid 10054
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                "Connection": "close"
+            }
+
+            response = self.requests.get(create_link_url, headers=headers, timeout=5)
             if response.status_code == 200:
-                data = response.json().get('js', {})
+                try:
+                    data = response.json().get('js', {})
+                except:
+                    data = {}
+                
                 real_cmd = data.get('cmd', '')
                 if real_cmd:
                     final_url = real_cmd.replace("ffmpeg ", "").strip()
@@ -4258,14 +4445,7 @@ class WindowsIPTVPlayer:
                                     final_url = final_url[:ext_pos] + f'stream={stream_id}&' + final_url[ext_pos:]
 
                     # Fix localhost/relative URLs
-                    if "localhost" in final_url:
-                        from urllib.parse import urlparse
-                        parsed_portal = urlparse(self.portal_url)
-                        final_url = final_url.replace("localhost", parsed_portal.netloc)
-                    elif final_url.startswith("/"):
-                        from urllib.parse import urlparse
-                        parsed_portal = urlparse(self.portal_url)
-                        final_url = f"{parsed_portal.scheme}://{parsed_portal.netloc}{final_url}"
+                    final_url = fix_url(final_url)
 
                     print(f"✅ Got clean stream URL: {final_url}")
                     return final_url
@@ -4276,8 +4456,9 @@ class WindowsIPTVPlayer:
         except Exception as e:
             print(f"❌ Stream link error: {e}")
 
-        print("❌ Failed to get stream link")
-        return None
+        # ✅ FALLBACK: Return direct URL instead of None to avoid popup
+        print("⚠️ Failed to get stream link - falling back to direct URL")
+        return fix_url(clean_cmd)
     
     
     
@@ -4346,7 +4527,7 @@ class WindowsIPTVPlayer:
     
     
     def play_stream(self):
-        """Enhanced play_stream with connection manager and retry logic"""
+        """Enhanced play_stream with provider-specific handling"""
         selected_index = self.channel_list.curselection()
         if not selected_index:
             messagebox.showwarning("Warning", "Please select a channel to play.")
@@ -4358,55 +4539,41 @@ class WindowsIPTVPlayer:
             self.status_var.set(f"Connecting to {channel_name}...")
             print(f"Attempting to play: {channel_name}")
             
-            # Use enhanced connection manager with retry logic
-            final_url = self.connection_manager.get_stream_with_retry(original_cmd, max_retries=3)
+            # Check provider type
+            provider_type = self.detect_provider_type(self.portal_url)
             
-            if final_url:
-                # Successfully got a working stream URL
-                self.status_var.set(f"Playing: {channel_name}")
-                print(f"Final playable URL: {final_url}")
-                self.play_video(final_url)
+            if provider_type == "delta8k":
+                # For delta8k, play the URL directly without token processing
+                print(f"🔥 Delta8k provider - playing directly: {stream_url}")
+                self.status_var.set(f"Playing: {channel_name} (Delta8k direct)")
+                self.play_direct(stream_url)
             else:
-                # All retry attempts failed
-                self.status_var.set("Connection failed")
-                print(f"Failed to get working stream for: {channel_name}")
+                # For other providers, use enhanced connection manager with retry logic
+                final_url = self.connection_manager.get_stream_with_retry(original_cmd, max_retries=3)
                 
-                # Show detailed error message
-                error_msg = (f"Unable to connect to '{channel_name}' after multiple attempts.\n\n"
-                            "Possible reasons:\n"
-                            "• Channel is temporarily offline\n"
-                            "• Network connectivity issues\n"
-                            "• Token authentication expired\n"
-                            "• Server overload\n\n"
-                            "Try:\n"
-                            "• Another channel\n"
-                            "• Refresh channels (Fetch Channels)\n"
-                            "• Check your internet connection")
-                
-                messagebox.showerror("Connection Error", error_msg)
-                
-                # Offer to try a basic fallback
-                if messagebox.askyesno("Fallback Option", 
-                                    f"Would you like to try playing '{channel_name}' "
-                                    "with the basic URL (may not work)?"):
-                    self.status_var.set(f"Trying fallback for: {channel_name}")
-                    self.play_video(stream_url)
-        
+                if final_url:
+                    # Successfully got a working stream URL
+                    self.status_var.set(f"Playing: {channel_name}")
+                    print(f"Final playable URL: {final_url}")
+                    self.play_direct(final_url)
+                else:
+                    # All retry attempts failed
+                    self.status_var.set("Connection failed")
+                    print(f"Failed to get working stream for: {channel_name}")
+                    
+                    # Show detailed error message with fallback option
+                    if messagebox.askyesno("Connection Error", 
+                                        f"Unable to connect to '{channel_name}' after multiple attempts.\n\n"
+                                        "Would you like to try playing with the basic URL?"):
+                        self.status_var.set(f"Trying direct play: {channel_name}")
+                        self.play_direct(stream_url)
         else:
             # Handle old format channels (compatibility)
             channel_name, stream_url = self.filtered_channels[selected_index[0]]
             
             self.status_var.set(f"Playing: {channel_name} (basic mode)")
             print(f"Playing basic URL for: {channel_name}")
-            
-            # For old format, try basic health check first
-            if self.check_stream_health(stream_url):
-                self.play_video(stream_url)
-            else:
-                self.status_var.set("Stream unavailable")
-                messagebox.showerror("Error", 
-                                f"'{channel_name}' stream is not accessible.\n"
-                                "Please try another channel or refresh the channel list.")
+            self.play_direct(stream_url)
 
     def play_video(self, stream_url):
         """Pure direct playback - NO CACHE METHODS"""
@@ -6195,7 +6362,45 @@ class WindowsIPTVPlayer:
         
     
         
-    
+    def diagnose_server_response(self, response_text, portal_url, mac_address):
+        """Diagnose why server returned empty channels"""
+        diagnosis = {
+            "response_valid": False,
+            "has_js_key": False,
+            "is_empty": False,
+            "likely_cause": "Unknown"
+        }
+        
+        try:
+            # Check JSON validity
+            data = json.loads(response_text)
+            diagnosis["response_valid"] = True
+            
+            # Check structure
+            if isinstance(data, dict) and "js" in data:
+                diagnosis["has_js_key"] = True
+                js_content = data.get("js")
+                
+                if isinstance(js_content, list) and len(js_content) == 0:
+                    diagnosis["is_empty"] = True
+                    diagnosis["likely_cause"] = "Subscription inactive or expired"
+                elif isinstance(js_content, dict):
+                    data_content = js_content.get("data", [])
+                    if len(data_content) == 0:
+                        diagnosis["is_empty"] = True
+                        diagnosis["likely_cause"] = "No channels assigned to this MAC"
+            
+            # Additional checks
+            if "error" in str(data).lower():
+                diagnosis["likely_cause"] = "Server returned error"
+            
+            print(f"📊 Server Diagnosis: {diagnosis}")
+            return diagnosis
+            
+        except json.JSONDecodeError:
+            diagnosis["likely_cause"] = "Invalid JSON response"
+            return diagnosis
+        
     
     
     

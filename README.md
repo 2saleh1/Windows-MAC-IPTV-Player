@@ -3,6 +3,7 @@
 A simple IPTV player for Windows using Python and Tkinter. Fetch and play IPTV channels using MAC authentication.
 
 ![Screenshot](Screenshot.png)
+![Screenshot](Screenshot2.png)
 
 ---
 
